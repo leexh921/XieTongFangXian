@@ -5,6 +5,7 @@ public enum TileType
     Buildable,
     Path,
     Obstacle,
+    Castle,
     Empty
 }
 
@@ -65,6 +66,11 @@ public class TileButton : MonoBehaviour
         spriteRenderer.color = color;
     }
 
+    public void SetOccupied(bool occupied)
+    {
+        is_occupied = occupied;
+    }
+
     public void HandleClick()
     {
         if (lastClickFrame == Time.frameCount)
@@ -89,6 +95,12 @@ public class TileButton : MonoBehaviour
         if (tileType == TileType.Obstacle)
         {
             NotifyInvalidClick("障碍物不可建造");
+            return;
+        }
+
+        if (tileType == TileType.Castle)
+        {
+            NotifyInvalidClick("堡垒位置不可建造");
             return;
         }
 

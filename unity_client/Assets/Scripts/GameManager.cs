@@ -15,6 +15,8 @@ public class GameManager : MonoBehaviour
     public int score;
     public int kill_count;
     public int base_hp;
+    public int time_used;
+    public bool is_win;
     public bool is_game_started;
     public bool is_game_over;
 
@@ -63,6 +65,8 @@ public class GameManager : MonoBehaviour
 
         game_id = newGameId;
         base_hp = gameStart.base_hp;
+        time_used = 0;
+        is_win = false;
         is_game_started = true;
         is_game_over = false;
 
@@ -105,6 +109,9 @@ public class GameManager : MonoBehaviour
         }
 
         is_game_over = true;
+        is_game_started = false;
+        is_win = gameOver.is_win;
+        time_used = gameOver.time_used;
         base_hp = gameOver.base_hp;
 
         if (gameOver.player != null)
@@ -122,6 +129,8 @@ public class GameManager : MonoBehaviour
         score = 0;
         kill_count = 0;
         base_hp = 0;
+        time_used = 0;
+        is_win = false;
         is_game_started = false;
         is_game_over = false;
         tower_config.Clear();

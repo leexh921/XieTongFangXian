@@ -7,6 +7,8 @@ public class NetworkManager : MonoBehaviour
     public event Action<LoginResultData> OnLoginResult;
     public event Action<GameStartData> OnGameStart;
     public event Action<BuildResultData> OnBuildResult;
+    public event Action<StateUpdateData> OnStateUpdate;
+    public event Action<GameOverData> OnGameOver;
 
     [Header("Connection")]
     public bool use_mock_server = true;
@@ -17,6 +19,7 @@ public class NetworkManager : MonoBehaviour
     private MockServerClient mockServerClient;
     private bool isConnected;
     private int requestCounter;
+    private float nextStateUpdateLogTime;
 
     private void Awake()
     {
@@ -253,27 +256,87 @@ public class NetworkManager : MonoBehaviour
         LastStatusMessage = message.data != null && message.data.success
             ? "build_result success."
             : "build_result failed.";
+
+        if (message.data != null)
+        {
+            string instanceId = message.data.tower != null ? message.data.tower.instance_id : string.Empty;
+            int gridX = message.data.tower != null ? message.data.tower.grid_x : 0;
+            int gridY = message.data.tower != null ? message.data.tower.grid_y : 0;
+            int gold = message.data.player != null ? message.data.player.gold : 0;
+            Debug.Log("[NetworkManager] build_result applied. success=" + message.data.success
+                + ", reason=" + message.data.reason
+                + ", tower=" + instanceId
+                + ", grid=" + gridX + "," + gridY
+                + ", gold=" + gold);
+        }
+
         OnBuildResult?.Invoke(message.data);
     }
 
     private void HandleMockStateUpdate(ProtocolMessage<StateUpdateData> message)
     {
-        Debug.Log("[NetworkManager] Received mock state_update placeholder: " + JsonUtility.ToJson(message));
+        if (message == null)
+        {
+            Debug.LogWarning("[NetworkManager] Ignored null state_update.");
+            return;
+        }
 
         if (message != null && message.data != null && GameManager.Instance != null)
         {
+            if (message.game_id > 0)
+            {
+                GameManager.Instance.game_id = message.game_id;
+            }
+
             GameManager.Instance.UpdatePlayerState(message.data.player, message.data.base_hp);
         }
+
+        int monsterCount = message.data != null && message.data.monsters != null ? message.data.monsters.Count : 0;
+        int gold = message.data != null && message.data.player != null ? message.data.player.gold : 0;
+        int score = message.data != null && message.data.player != null ? message.data.player.score : 0;
+        int baseHp = message.data != null ? message.data.base_hp : 0;
+        float gameTime = message.data != null ? message.data.game_time_sec : 0f;
+        if (message.data == null || gameTime >= nextStateUpdateLogTime)
+        {
+            Debug.Log("[NetworkManager] state_update received. monsters=" + monsterCount
+                + ", gold=" + gold
+                + ", score=" + score
+                + ", base_hp=" + baseHp);
+            nextStateUpdateLogTime = gameTime + 1f;
+        }
+
+        OnStateUpdate?.Invoke(message.data);
     }
 
     private void HandleMockGameOver(ProtocolMessage<GameOverData> message)
     {
-        Debug.Log("[NetworkManager] Received mock game_over placeholder: " + JsonUtility.ToJson(message));
+        if (message == null)
+        {
+            Debug.LogWarning("[NetworkManager] Ignored null game_over.");
+            return;
+        }
 
-        if (message != null && GameManager.Instance != null)
+        Debug.Log("[NetworkManager] Received mock game_over: " + JsonUtility.ToJson(message));
+
+        if (GameManager.Instance != null)
         {
             GameManager.Instance.SetGameOver(message.data);
         }
+
+        LastStatusMessage = "game_over received.";
+
+        if (message.data != null)
+        {
+            int score = message.data.player != null ? message.data.player.score : 0;
+            int killCount = message.data.player != null ? message.data.player.kill_count : 0;
+            Debug.Log("[NetworkManager] game_over applied. is_win=" + message.data.is_win
+                + ", score=" + score
+                + ", kill_count=" + killCount
+                + ", time_used=" + message.data.time_used
+                + ", base_hp=" + message.data.base_hp);
+        }
+
+        OnGameOver?.Invoke(message.data);
     }
 
     private void EnsureMockServerClient()

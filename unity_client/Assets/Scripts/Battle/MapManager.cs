@@ -5,18 +5,19 @@ using UnityEngine;
 public class MapManager : MonoBehaviour
 {
     [Header("Grid")]
-    public int width = 10;
-    public int height = 6;
-    public float cellSize = 1.2f;
+    public int width = BattleMapConfig.Width;
+    public int height = BattleMapConfig.Height;
+    public float cellSize = BattleMapConfig.CellSize;
     public Transform tileRoot;
     public GameObject tilePrefab;
+    public Transform towerRoot;
+    public GameObject towerPrefab;
 
     [Header("References")]
     public NetworkManager networkManager;
     public GameManager gameManager;
     public BattleUI battleUI;
     public int selectedTowerId = 1;
-    public bool markTileOccupiedOnBuildResult;
 
     [Header("Buildable Sprites")]
     public Sprite buildableCenterSprite;
@@ -32,27 +33,22 @@ public class MapManager : MonoBehaviour
     [Header("Special Sprites")]
     public Sprite pathSprite;
     public Sprite obstacleSprite;
+    public Sprite castleSprite;
     public Sprite emptySprite;
 
-    [Header("Layout")]
-    public string[] mapLayout =
-    {
-        "BBBBBBBBBB",
-        "BBOBBBBBBB",
-        "PPPPPPBBBB",
-        "BBBBBPBBBB",
-        "BBBBBPPPPP",
-        "BBBBBBBBBB"
-    };
-
     private readonly Dictionary<string, TileButton> tiles = new Dictionary<string, TileButton>();
+    private readonly Dictionary<Vector2Int, TileButton> tileMap = new Dictionary<Vector2Int, TileButton>();
+    private readonly Dictionary<string, TowerView> towerInstances = new Dictionary<string, TowerView>();
+    private readonly HashSet<Vector2Int> occupiedTowerTiles = new HashSet<Vector2Int>();
     private Sprite fallbackSprite;
 
     private void Start()
     {
         ResolveReferences();
         SubscribeNetworkEvents();
+        EnsureTowerRoot();
         GenerateMap();
+        FitCameraToMap();
 
         if (battleUI != null)
         {
@@ -105,29 +101,15 @@ public class MapManager : MonoBehaviour
         EnsureFallbackSprite();
         ClearExistingTiles();
 
-        if (mapLayout == null || mapLayout.Length == 0)
-        {
-            mapLayout = new[] { "BBBBBBBBBB", "PPPPPPBBBB", "BBBBBBBBBB" };
-        }
+        width = BattleMapConfig.Width;
+        height = BattleMapConfig.Height;
+        cellSize = BattleMapConfig.CellSize;
 
-        height = mapLayout.Length;
-        width = 0;
-        for (int row = 0; row < mapLayout.Length; row++)
+        for (int y = 0; y < height; y++)
         {
-            if (!string.IsNullOrEmpty(mapLayout[row]) && mapLayout[row].Length > width)
-            {
-                width = mapLayout[row].Length;
-            }
-        }
-
-        for (int row = 0; row < height; row++)
-        {
-            string rowText = mapLayout[row] ?? string.Empty;
             for (int x = 0; x < width; x++)
             {
-                int y = height - 1 - row;
-                char code = x < rowText.Length ? rowText[x] : 'E';
-                TileType type = ParseTileType(code);
+                TileType type = GetTileTypeFromConfig(x, y);
                 CreateTile(x, y, type);
             }
         }
@@ -136,6 +118,12 @@ public class MapManager : MonoBehaviour
     public void OnTileClicked(int gridX, int gridY)
     {
         ResolveReferences();
+
+        if (gameManager != null && gameManager.is_game_over)
+        {
+            ShowTileMessage("游戏已结束");
+            return;
+        }
 
         string message = "建塔请求已发送: " + gridX + "," + gridY;
         Debug.Log("[MapManager] " + message + ", tower_id=" + selectedTowerId);
@@ -165,10 +153,10 @@ public class MapManager : MonoBehaviour
 
     public void MarkTileOccupied(int gridX, int gridY)
     {
-        TileButton tile;
-        if (tiles.TryGetValue(MakeKey(gridX, gridY), out tile) && tile != null)
+        TileButton tile = GetTile(gridX, gridY);
+        if (tile != null)
         {
-            tile.is_occupied = true;
+            tile.SetOccupied(true);
             tile.SetVisual(GetSpriteForTile(tile.tileType, gridX, gridY), new Color(0.38f, 0.72f, 0.42f, 1f));
         }
     }
@@ -192,12 +180,7 @@ public class MapManager : MonoBehaviour
         {
             if (buildResult.tower != null)
             {
-                if (markTileOccupiedOnBuildResult)
-                {
-                    MarkTileOccupied(buildResult.tower.grid_x, buildResult.tower.grid_y);
-                }
-
-                ShowTileMessage("建塔成功: " + buildResult.tower.grid_x + "," + buildResult.tower.grid_y);
+                CreateTowerFromBuildResult(buildResult.tower);
             }
             else
             {
@@ -206,7 +189,7 @@ public class MapManager : MonoBehaviour
         }
         else
         {
-            ShowTileMessage("建塔失败: " + buildResult.reason);
+            ShowTileMessage("建塔失败: " + GetBuildFailureMessage(buildResult.reason));
         }
     }
 
@@ -224,9 +207,7 @@ public class MapManager : MonoBehaviour
         }
 
         tileObject.name = "Tile_" + gridX + "_" + gridY + "_" + type;
-        float originX = -(width - 1) * cellSize * 0.5f;
-        float originY = -(height - 1) * cellSize * 0.5f;
-        tileObject.transform.localPosition = new Vector3(originX + gridX * cellSize, originY + gridY * cellSize, 0f);
+        tileObject.transform.position = BattleMapConfig.GridToWorld(gridX, gridY);
         tileObject.transform.localScale = new Vector3(cellSize * 0.95f, cellSize * 0.95f, 1f);
 
         var tile = tileObject.GetComponent<TileButton>();
@@ -252,6 +233,77 @@ public class MapManager : MonoBehaviour
         tile.SetVisual(GetSpriteForTile(type, gridX, gridY), GetColorForTile(type));
 
         tiles[MakeKey(gridX, gridY)] = tile;
+        tileMap[new Vector2Int(gridX, gridY)] = tile;
+    }
+
+    private void CreateTowerFromBuildResult(TowerStateData towerData)
+    {
+        if (towerData == null)
+        {
+            ShowTileMessage("建塔失败：缺少塔数据");
+            return;
+        }
+
+        if (!string.IsNullOrEmpty(towerData.instance_id) && towerInstances.ContainsKey(towerData.instance_id))
+        {
+            ShowTileMessage("建塔成功: " + towerData.grid_x + "," + towerData.grid_y);
+            return;
+        }
+
+        var tilePosition = new Vector2Int(towerData.grid_x, towerData.grid_y);
+        TileButton tile = GetTile(towerData.grid_x, towerData.grid_y);
+        if (tile == null)
+        {
+            ShowTileMessage("建塔失败：地块不存在 " + towerData.grid_x + "," + towerData.grid_y);
+            return;
+        }
+
+        if (occupiedTowerTiles.Contains(tilePosition) || tile.is_occupied)
+        {
+            MarkTileOccupied(towerData.grid_x, towerData.grid_y);
+            ShowTileMessage("该地块已有塔: " + towerData.grid_x + "," + towerData.grid_y);
+            return;
+        }
+
+        EnsureTowerRoot();
+
+        GameObject towerObject;
+        if (towerPrefab != null)
+        {
+            towerObject = Instantiate(towerPrefab, towerRoot);
+        }
+        else
+        {
+            towerObject = CreateDefaultTowerObject();
+            towerObject.transform.SetParent(towerRoot, false);
+        }
+
+        towerObject.name = string.IsNullOrEmpty(towerData.instance_id)
+            ? "Tower_" + towerData.grid_x + "_" + towerData.grid_y
+            : towerData.instance_id;
+        towerObject.transform.position = new Vector3(tile.transform.position.x, tile.transform.position.y, -0.1f);
+        towerObject.transform.localScale = new Vector3(cellSize * 0.55f, cellSize * 0.55f, 1f);
+
+        var towerView = towerObject.GetComponent<TowerView>();
+        if (towerView == null)
+        {
+            towerView = towerObject.AddComponent<TowerView>();
+        }
+
+        towerView.Init(towerData.instance_id, towerData.tower_id, towerData.owner_player_id, towerData.grid_x, towerData.grid_y);
+        string instanceKey = string.IsNullOrEmpty(towerData.instance_id)
+            ? "tower_" + towerData.grid_x + "_" + towerData.grid_y
+            : towerData.instance_id;
+        towerInstances[instanceKey] = towerView;
+        occupiedTowerTiles.Add(tilePosition);
+        MarkTileOccupied(towerData.grid_x, towerData.grid_y);
+
+        if (battleUI != null)
+        {
+            battleUI.Refresh();
+        }
+
+        ShowTileMessage("建塔成功: " + towerData.grid_x + "," + towerData.grid_y);
     }
 
     private GameObject CreateDefaultTileObject()
@@ -262,6 +314,14 @@ public class MapManager : MonoBehaviour
         tileObject.AddComponent<BoxCollider2D>();
         tileObject.AddComponent<TileButton>();
         return tileObject;
+    }
+
+    private GameObject CreateDefaultTowerObject()
+    {
+        var towerObject = new GameObject("Tower");
+        towerObject.AddComponent<SpriteRenderer>();
+        towerObject.AddComponent<TowerView>();
+        return towerObject;
     }
 
     private void EnsureTileRoot()
@@ -279,6 +339,24 @@ public class MapManager : MonoBehaviour
         }
 
         tileRoot = root.transform;
+    }
+
+    private void EnsureTowerRoot()
+    {
+        if (towerRoot != null)
+        {
+            return;
+        }
+
+        var root = GameObject.Find("TowerRoot");
+        if (root == null)
+        {
+            root = new GameObject("TowerRoot");
+            var mapRoot = GameObject.Find("MapRoot");
+            root.transform.SetParent(mapRoot != null ? mapRoot.transform : transform, false);
+        }
+
+        towerRoot = root.transform;
     }
 
     private void EnsureFallbackSprite()
@@ -299,6 +377,7 @@ public class MapManager : MonoBehaviour
     private void ClearExistingTiles()
     {
         tiles.Clear();
+        tileMap.Clear();
         if (tileRoot == null)
         {
             return;
@@ -310,22 +389,24 @@ public class MapManager : MonoBehaviour
         }
     }
 
-    private TileType ParseTileType(char code)
+    private TileType GetTileTypeFromConfig(int gridX, int gridY)
     {
-        switch (code)
+        if (BattleMapConfig.IsCastleGrid(gridX, gridY))
         {
-            case 'B':
-            case 'b':
-                return TileType.Buildable;
-            case 'P':
-            case 'p':
-                return TileType.Path;
-            case 'O':
-            case 'o':
-                return TileType.Obstacle;
-            default:
-                return TileType.Empty;
+            return TileType.Castle;
         }
+
+        if (BattleMapConfig.IsObstacleGrid(gridX, gridY))
+        {
+            return TileType.Obstacle;
+        }
+
+        if (BattleMapConfig.IsPathGrid(gridX, gridY))
+        {
+            return TileType.Path;
+        }
+
+        return TileType.Buildable;
     }
 
     private Sprite GetSpriteForTile(TileType type, int x, int y)
@@ -342,6 +423,10 @@ public class MapManager : MonoBehaviour
         else if (type == TileType.Obstacle)
         {
             selected = obstacleSprite;
+        }
+        else if (type == TileType.Castle)
+        {
+            selected = castleSprite;
         }
         else
         {
@@ -374,26 +459,64 @@ public class MapManager : MonoBehaviour
                 return new Color(0.78f, 0.58f, 0.28f, 1f);
             case TileType.Obstacle:
                 return new Color(0.45f, 0.47f, 0.5f, 1f);
+            case TileType.Castle:
+                return new Color(0.25f, 0.26f, 0.58f, 1f);
             default:
                 return new Color(0.12f, 0.14f, 0.18f, 0.45f);
         }
     }
 
-    private void ResolveReferences()
+    private void FitCameraToMap()
     {
-        if (networkManager == null)
+        Camera mainCamera = Camera.main;
+        if (mainCamera == null)
         {
-            networkManager = NetworkManager.Instance != null ? NetworkManager.Instance : FindObjectOfType<NetworkManager>();
+            return;
         }
 
-        if (gameManager == null)
+        mainCamera.orthographic = true;
+        mainCamera.transform.position = new Vector3(0f, 0f, -10f);
+
+        float mapWorldWidth = BattleMapConfig.Width * BattleMapConfig.CellSize;
+        float mapWorldHeight = BattleMapConfig.Height * BattleMapConfig.CellSize;
+        float aspect = mainCamera.aspect > 0f ? mainCamera.aspect : 16f / 9f;
+        float sizeByHeight = mapWorldHeight * 0.5f + 0.9f;
+        float sizeByWidth = mapWorldWidth * 0.5f / aspect + 0.9f;
+        mainCamera.orthographicSize = Mathf.Max(sizeByHeight, sizeByWidth);
+    }
+
+    private void ResolveReferences()
+    {
+        if (NetworkManager.Instance != null)
         {
-            gameManager = GameManager.Instance != null ? GameManager.Instance : FindObjectOfType<GameManager>();
+            networkManager = NetworkManager.Instance;
+        }
+        else if (networkManager == null)
+        {
+            networkManager = FindObjectOfType<NetworkManager>();
+        }
+
+        if (GameManager.Instance != null)
+        {
+            gameManager = GameManager.Instance;
+        }
+        else if (gameManager == null)
+        {
+            gameManager = FindObjectOfType<GameManager>();
         }
 
         if (battleUI == null)
         {
             battleUI = FindObjectOfType<BattleUI>();
+        }
+
+        if (towerRoot == null)
+        {
+            var root = GameObject.Find("TowerRoot");
+            if (root != null)
+            {
+                towerRoot = root.transform;
+            }
         }
     }
 
@@ -422,5 +545,34 @@ public class MapManager : MonoBehaviour
     private string MakeKey(int gridX, int gridY)
     {
         return gridX + "," + gridY;
+    }
+
+    private TileButton GetTile(int gridX, int gridY)
+    {
+        TileButton tile;
+        if (tileMap.TryGetValue(new Vector2Int(gridX, gridY), out tile))
+        {
+            return tile;
+        }
+
+        tiles.TryGetValue(MakeKey(gridX, gridY), out tile);
+        return tile;
+    }
+
+    private string GetBuildFailureMessage(string reason)
+    {
+        switch (reason)
+        {
+            case "not_enough_gold":
+                return "金币不足";
+            case "tile_occupied":
+                return "该地块已有塔";
+            case "invalid_tower":
+                return "无效的防御塔";
+            case "invalid_player":
+                return "无效玩家";
+            default:
+                return string.IsNullOrEmpty(reason) ? "未知原因" : reason;
+        }
     }
 }

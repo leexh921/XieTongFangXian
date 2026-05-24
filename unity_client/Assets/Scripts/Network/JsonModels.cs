@@ -54,7 +54,7 @@ public class LevelData
     public string name;
     public int base_hp;
     public int initial_gold;
-    public int gold_per_second;
+    public float gold_per_second;
 }
 
 [Serializable]
