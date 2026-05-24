@@ -1,23 +1,77 @@
-# Unity
-/[Ll]ibrary/
-/[Tt]emp/
-/[Oo]bj/
-/[Bb]uild/
-/[Bb]uilds/
-/[Ll]ogs/
-/[Uu]ser[Ss]ettings/
-
-# Other
-.vs/
+# =========================
+# OS / Editor
+# =========================
+.DS_Store
+Thumbs.db
 .vscode/
-.utmp/
-.vsconfig
-*.sln
-*.csproj
-*.vrmanifest
+.idea/
 
-# Python cache
+# =========================
+# Python
+# =========================
 __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
+.venv/
+venv/
+env/
+*.log
+
+# =========================
+# Node / Vue
+# =========================
+node_modules/
+dist/
+.vite/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# =========================
+# Environment
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
+# Database
+# =========================
+*.sqlite3
+*.db
+
+# =========================
+# Unity project under unity_client/
+# =========================
+unity_client/[Ll]ibrary/
+unity_client/[Tt]emp/
+unity_client/[Oo]bj/
+unity_client/[Bb]uild/
+unity_client/[Bb]uilds/
+unity_client/[Ll]ogs/
+unity_client/[Uu]ser[Ss]ettings/
+
+unity_client/MemoryCaptures/
+unity_client/Recordings/
+
+unity_client/*.csproj
+unity_client/*.sln
+unity_client/*.suo
+unity_client/*.user
+unity_client/*.userprefs
+unity_client/*.pidb
+unity_client/*.booproj
+
+unity_client/.vs/
+unity_client/.gradle/
+
+# Unity generated crash reports
+unity_client/sysinfo.txt
+
+# Do NOT ignore these:
+# unity_client/Assets/
+# unity_client/Packages/
+# unity_client/ProjectSettings/
+# *.meta

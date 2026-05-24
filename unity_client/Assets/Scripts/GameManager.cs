@@ -1,54 +1,25 @@
+using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 
-/// <summary>
-/// Unity 全局状态管理。
-/// 当前 MVP 是单人游戏，所以只保存 username、game_id、level_id 等单局信息，
-/// 不保存 room_code、player_list、host 等多人房间字段。
-/// </summary>
 public class GameManager : MonoBehaviour
 {
     public static GameManager Instance { get; private set; }
 
-    [Header("Server")]
-    public string websocketUrl = "ws://127.0.0.1:8000/ws";
+    [Header("Player")]
+    public string username;
+    public int player_id;
 
     [Header("Game")]
-    public string username = "Player";
-    public string gameId = "";
-    public int levelId = 1;
-    public int selectedTowerId = 1;
-    public string battleSceneName = "BattleScene";
-    public bool autoStartAfterLogin = true;
+    public int game_id;
+    public int gold;
+    public int score;
+    public int kill_count;
+    public int base_hp;
+    public bool is_game_started;
+    public bool is_game_over;
 
-    public GameStartMessage LastGameStart { get; private set; }
-    public StateUpdateMessage LastStateUpdate { get; private set; }
-    public GameOverMessage LastGameOver { get; private set; }
-    public bool IsGameRunning { get; private set; }
-
-    private bool subscribed;
-
-    /// <summary>
-    /// 确保场景里有 GameManager。
-    /// LoginScene 如果忘记放全局对象，也可以由 UI 脚本自动创建。
-    /// </summary>
-    public static GameManager EnsureInstance()
-    {
-        if (Instance != null)
-        {
-            return Instance;
-        }
-
-        GameManager existing = FindObjectOfType<GameManager>();
-        if (existing != null)
-        {
-            Instance = existing;
-            return existing;
-        }
-
-        GameObject holder = new GameObject("GameManager");
-        return holder.AddComponent<GameManager>();
-    }
+    [Header("Config")]
+    public List<TowerConfigData> tower_config = new List<TowerConfigData>();
 
     private void Awake()
     {
@@ -60,196 +31,101 @@ public class GameManager : MonoBehaviour
 
         Instance = this;
         DontDestroyOnLoad(gameObject);
-        WebSocketClient.EnsureInstance();
     }
 
-    private void OnEnable()
+    public void SetLoginResult(LoginResultData loginResult)
     {
-        SubscribeNetworkEvents();
-    }
-
-    private void OnDestroy()
-    {
-        UnsubscribeNetworkEvents();
-    }
-
-    /// <summary>
-    /// 设置玩家昵称。
-    /// 空字符串会自动替换成 Player，避免后端写入 game_result 时 username 为空。
-    /// </summary>
-    public void SetUsername(string input)
-    {
-        username = string.IsNullOrWhiteSpace(input) ? "Player" : input.Trim();
-    }
-
-    /// <summary>
-    /// 登录按钮建议调用这个函数。
-    /// 流程：连接 /ws -> 发送 login -> 登录成功后自动 start_game。
-    /// </summary>
-    public async void ConnectLoginAndStart(string inputUsername)
-    {
-        SetUsername(inputUsername);
-
-        WebSocketClient client = WebSocketClient.EnsureInstance();
-        await client.ConnectAsync(websocketUrl);
-
-        if (client.IsConnected)
+        if (loginResult == null)
         {
-            client.SendLogin(username);
-        }
-    }
-
-    /// <summary>
-    /// 手动开始一局。
-    /// 用于结算界面的“再来一局”，或调试时跳过登录直接开始。
-    /// </summary>
-    public void StartGame()
-    {
-        WebSocketClient client = WebSocketClient.EnsureInstance();
-
-        if (!client.IsConnected)
-        {
-            Debug.LogWarning("Cannot start game: WebSocket is not connected.");
+            Debug.LogWarning("[GameManager] SetLoginResult ignored null data.");
             return;
         }
 
-        LastGameStart = null;
-        LastStateUpdate = null;
-        LastGameOver = null;
-        IsGameRunning = false;
-
-        client.SendStartGame(username, levelId);
-    }
-
-    /// <summary>
-    /// 从 TileButton 调用，向服务端请求在某个地块建塔。
-    /// 真正是否成功由服务端判断，例如金币是否足够、地块是否已占用。
-    /// </summary>
-    public void BuildTower(int tileId, Vector3 worldPosition, int towerIdOverride = -1)
-    {
-        if (string.IsNullOrEmpty(gameId))
+        if (!loginResult.success)
         {
-            Debug.LogWarning("Cannot build tower: gameId is empty. Start a game first.");
+            Debug.LogWarning("[GameManager] Login failed: " + loginResult.message);
             return;
         }
 
-        int towerId = towerIdOverride > 0 ? towerIdOverride : selectedTowerId;
-        WebSocketClient.EnsureInstance().SendBuildRequest(gameId, tileId, towerId, worldPosition);
+        player_id = loginResult.player_id;
+        username = loginResult.username;
+
+        Debug.Log("[GameManager] Login state saved. player_id=" + player_id + ", username=" + username);
     }
 
-    /// <summary>
-    /// 切换当前选择的塔类型。
-    /// 以后如果 UI 做多个塔按钮，可以直接调用这个函数。
-    /// </summary>
-    public void SelectTower(int towerId)
+    public void SetGameStart(int newGameId, GameStartData gameStart)
     {
-        if (towerId <= 0)
+        if (gameStart == null)
         {
-            Debug.LogWarning("towerId must be positive.");
+            Debug.LogWarning("[GameManager] SetGameStart ignored null data.");
             return;
         }
 
-        selectedTowerId = towerId;
-    }
+        game_id = newGameId;
+        base_hp = gameStart.base_hp;
+        is_game_started = true;
+        is_game_over = false;
 
-    /// <summary>
-    /// 结算后重新开始。
-    /// 注意这会重新发送 start_game，因此会读取 Web 后台保存到 MySQL 的最新配置。
-    /// </summary>
-    public void RestartGame()
-    {
-        StartGame();
-    }
-
-    private void SubscribeNetworkEvents()
-    {
-        if (subscribed)
+        if (gameStart.player != null)
         {
-            return;
+            UpdatePlayerState(gameStart.player, gameStart.base_hp);
         }
 
-        WebSocketClient client = WebSocketClient.EnsureInstance();
-        client.OnLoginResult += HandleLoginResult;
-        client.OnGameStart += HandleGameStart;
-        client.OnStateUpdate += HandleStateUpdate;
-        client.OnGameOver += HandleGameOver;
-        subscribed = true;
+        tower_config = gameStart.tower_config != null
+            ? new List<TowerConfigData>(gameStart.tower_config)
+            : new List<TowerConfigData>();
+
+        Debug.Log("[GameManager] Game started. game_id=" + game_id + ", tower_config_count=" + tower_config.Count);
     }
 
-    private void UnsubscribeNetworkEvents()
+    public void UpdatePlayerState(PlayerStateData playerState, int newBaseHp)
     {
-        if (!subscribed || WebSocketClient.Instance == null)
+        if (playerState != null)
         {
-            return;
-        }
-
-        WebSocketClient client = WebSocketClient.Instance;
-        client.OnLoginResult -= HandleLoginResult;
-        client.OnGameStart -= HandleGameStart;
-        client.OnStateUpdate -= HandleStateUpdate;
-        client.OnGameOver -= HandleGameOver;
-        subscribed = false;
-    }
-
-    private void HandleLoginResult(LoginResultMessage message)
-    {
-        if (message != null && message.success)
-        {
-            if (!string.IsNullOrEmpty(message.username))
+            player_id = playerState.player_id;
+            if (!string.IsNullOrEmpty(playerState.username))
             {
-                username = message.username;
+                username = playerState.username;
             }
 
-            if (autoStartAfterLogin)
-            {
-                StartGame();
-            }
+            gold = playerState.gold;
+            score = playerState.score;
+            kill_count = playerState.kill_count;
         }
-        else
-        {
-            string reason = message == null ? "empty login result" : message.message;
-            Debug.LogWarning("Login failed: " + reason);
-        }
+
+        base_hp = newBaseHp;
     }
 
-    private void HandleGameStart(GameStartMessage message)
+    public void SetGameOver(GameOverData gameOver)
     {
-        if (message == null || !message.success)
+        if (gameOver == null)
         {
-            Debug.LogWarning("Game start failed: " + (message == null ? "empty message" : message.message));
+            Debug.LogWarning("[GameManager] SetGameOver ignored null data.");
             return;
         }
 
-        LastGameStart = message;
-        LastGameOver = null;
-        gameId = message.game_id;
-        IsGameRunning = true;
+        is_game_over = true;
+        base_hp = gameOver.base_hp;
 
-        if (!string.IsNullOrEmpty(battleSceneName) &&
-            SceneManager.GetActiveScene().name != battleSceneName)
+        if (gameOver.player != null)
         {
-            SceneManager.LoadScene(battleSceneName);
+            UpdatePlayerState(gameOver.player, gameOver.base_hp);
         }
+
+        Debug.Log("[GameManager] Game over. is_win=" + gameOver.is_win + ", score=" + score);
     }
 
-    private void HandleStateUpdate(StateUpdateMessage message)
+    public void ResetGameState()
     {
-        LastStateUpdate = message;
+        game_id = 0;
+        gold = 0;
+        score = 0;
+        kill_count = 0;
+        base_hp = 0;
+        is_game_started = false;
+        is_game_over = false;
+        tower_config.Clear();
 
-        if (message != null && !string.IsNullOrEmpty(message.game_id))
-        {
-            gameId = message.game_id;
-        }
-    }
-
-    private void HandleGameOver(GameOverMessage message)
-    {
-        LastGameOver = message;
-        IsGameRunning = false;
-
-        if (message != null && !string.IsNullOrEmpty(message.game_id))
-        {
-            gameId = message.game_id;
-        }
+        Debug.Log("[GameManager] Game state reset.");
     }
 }

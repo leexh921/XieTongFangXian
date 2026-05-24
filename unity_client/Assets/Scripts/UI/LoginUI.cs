@@ -1,128 +1,142 @@
+using System.Collections;
+using TMPro;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
-/// <summary>
-/// 登录界面逻辑。
-/// MVP 流程：输入昵称 -> 连接 FastAPI /ws -> login -> start_game -> 进入 BattleScene。
-/// 不包含创建房间、加入房间、显示玩家列表。
-/// </summary>
 public class LoginUI : MonoBehaviour
 {
-    public InputField usernameInput;
-    public Text statusText;
-    public Button startButton;
+    public TMP_InputField usernameInput;
+    public Button loginButton;
+    public TextMeshProUGUI statusText;
+    public NetworkManager networkManager;
+    public GameManager gameManager;
+    public string lobbySceneName = "LobbyScene";
+    public float loadLobbyDelaySeconds = 0.5f;
 
     private void Start()
     {
-        GameManager.EnsureInstance();
-        WebSocketClient.EnsureInstance();
+        ResolveReferences();
 
-        if (startButton != null)
+        if (loginButton != null)
         {
-            startButton.onClick.AddListener(HandleStartButtonClicked);
+            loginButton.onClick.RemoveListener(OnLoginClicked);
+            loginButton.onClick.AddListener(OnLoginClicked);
         }
 
-        SetStatus("请输入昵称后开始游戏");
-    }
-
-    private void OnEnable()
-    {
-        WebSocketClient client = WebSocketClient.EnsureInstance();
-        client.OnConnected += HandleConnected;
-        client.OnDisconnected += HandleDisconnected;
-        client.OnLoginResult += HandleLoginResult;
-        client.OnGameStart += HandleGameStart;
-        client.OnErrorMessage += HandleError;
-    }
-
-    private void OnDisable()
-    {
-        if (WebSocketClient.Instance == null)
+        if (networkManager != null)
         {
+            networkManager.OnLoginResult -= HandleLoginResult;
+            networkManager.OnLoginResult += HandleLoginResult;
+        }
+
+        SetStatus("请输入昵称");
+    }
+
+    private void OnDestroy()
+    {
+        if (networkManager != null)
+        {
+            networkManager.OnLoginResult -= HandleLoginResult;
+        }
+
+        if (loginButton != null)
+        {
+            loginButton.onClick.RemoveListener(OnLoginClicked);
+        }
+    }
+
+    private void OnLoginClicked()
+    {
+        ResolveReferences();
+
+        if (networkManager == null)
+        {
+            SetStatus("未找到 NetworkManager");
             return;
         }
 
-        WebSocketClient client = WebSocketClient.Instance;
-        client.OnConnected -= HandleConnected;
-        client.OnDisconnected -= HandleDisconnected;
-        client.OnLoginResult -= HandleLoginResult;
-        client.OnGameStart -= HandleGameStart;
-        client.OnErrorMessage -= HandleError;
-    }
+        if (usernameInput == null)
+        {
+            SetStatus("未绑定昵称输入框");
+            return;
+        }
 
-    /// <summary>
-    /// 绑定到“开始游戏”按钮。
-    /// 这里不直接 LoadScene，而是等服务端返回 game_start 后由 GameManager 切换场景。
-    /// </summary>
-    public void HandleStartButtonClicked()
-    {
-        string inputName = usernameInput == null ? "" : usernameInput.text;
-        SetInteractable(false);
+        string username = usernameInput.text.Trim();
+        if (string.IsNullOrEmpty(username))
+        {
+            SetStatus("请输入昵称");
+            return;
+        }
+
+        if (loginButton != null)
+        {
+            loginButton.interactable = false;
+        }
+
         SetStatus("正在连接服务器...");
-        GameManager.EnsureInstance().ConnectLoginAndStart(inputName);
+        networkManager.Connect();
+        networkManager.Login(username);
     }
 
-    private void HandleConnected()
+    private void HandleLoginResult(LoginResultData loginResult)
     {
-        SetStatus("已连接服务器，正在登录...");
-    }
-
-    private void HandleDisconnected(string reason)
-    {
-        SetInteractable(true);
-        SetStatus("连接已断开：" + reason);
-    }
-
-    private void HandleLoginResult(LoginResultMessage message)
-    {
-        if (message != null && message.success)
+        if (loginButton != null)
         {
-            SetStatus("登录成功，正在开始游戏...");
+            loginButton.interactable = true;
         }
-        else
+
+        if (loginResult == null)
         {
-            SetInteractable(true);
-            SetStatus("登录失败：" + (message == null ? "无返回" : message.message));
+            SetStatus("登录失败：服务器返回为空");
+            return;
         }
+
+        ResolveReferences();
+
+        if (!loginResult.success)
+        {
+            SetStatus("登录失败：" + loginResult.message);
+            return;
+        }
+
+        int playerId = gameManager != null ? gameManager.player_id : loginResult.player_id;
+        string username = gameManager != null ? gameManager.username : loginResult.username;
+
+        SetStatus("登录成功\nplayer_id: " + playerId + "\nusername: " + username);
+        StartCoroutine(LoadLobbyAfterDelay());
     }
 
-    private void HandleGameStart(GameStartMessage message)
+    private void ResolveReferences()
     {
-        if (message != null && message.success)
+        if (networkManager == null)
         {
-            SetStatus("游戏开始");
+            networkManager = NetworkManager.Instance != null ? NetworkManager.Instance : FindObjectOfType<NetworkManager>();
         }
-        else
+
+        if (gameManager == null)
         {
-            SetInteractable(true);
-            SetStatus("开始游戏失败：" + (message == null ? "无返回" : message.message));
+            gameManager = GameManager.Instance != null ? GameManager.Instance : FindObjectOfType<GameManager>();
         }
     }
 
-    private void HandleError(ErrorMessage message)
-    {
-        SetInteractable(true);
-        SetStatus("错误：" + (message == null ? "未知错误" : message.message));
-    }
-
-    private void SetStatus(string text)
+    private void SetStatus(string message)
     {
         if (statusText != null)
         {
-            statusText.text = text;
+            statusText.text = message;
         }
+
+        Debug.Log("[LoginUI] " + message);
     }
 
-    private void SetInteractable(bool interactable)
+    private IEnumerator LoadLobbyAfterDelay()
     {
-        if (startButton != null)
-        {
-            startButton.interactable = interactable;
-        }
+        yield return new WaitForSeconds(loadLobbyDelaySeconds);
 
-        if (usernameInput != null)
+        if (!string.IsNullOrEmpty(lobbySceneName))
         {
-            usernameInput.interactable = interactable;
+            SceneManager.LoadScene(lobbySceneName);
         }
     }
 }
