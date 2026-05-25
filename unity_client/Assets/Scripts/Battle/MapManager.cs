@@ -40,6 +40,7 @@ public class MapManager : MonoBehaviour
     private readonly Dictionary<Vector2Int, TileButton> tileMap = new Dictionary<Vector2Int, TileButton>();
     private readonly Dictionary<string, TowerView> towerInstances = new Dictionary<string, TowerView>();
     private readonly HashSet<Vector2Int> occupiedTowerTiles = new HashSet<Vector2Int>();
+    private MapConfigData activeMap;
     private Sprite fallbackSprite;
 
     private void Start()
@@ -101,8 +102,21 @@ public class MapManager : MonoBehaviour
         EnsureFallbackSprite();
         ClearExistingTiles();
 
-        width = BattleMapConfig.Width;
-        height = BattleMapConfig.Height;
+        activeMap = BattleMapConfig.GetActiveMapConfig();
+        if (gameManager != null && gameManager.GetCurrentMapConfig() != null && !BattleMapConfig.IsUsableMap(gameManager.GetCurrentMapConfig()))
+        {
+            Debug.LogWarning("[MapManager] Server map_config is invalid or has empty path_points. Fallback map will be used.");
+            activeMap = BattleMapConfig.CreateDefaultMapConfig();
+        }
+
+        if (activeMap.castle == null)
+        {
+            activeMap.castle = BattleMapConfig.GetCastlePoint(activeMap);
+            Debug.LogWarning("[MapManager] map.castle is missing. Using last path point as castle.");
+        }
+
+        width = activeMap.width;
+        height = activeMap.height;
         cellSize = BattleMapConfig.CellSize;
 
         for (int y = 0; y < height; y++)
@@ -207,7 +221,7 @@ public class MapManager : MonoBehaviour
         }
 
         tileObject.name = "Tile_" + gridX + "_" + gridY + "_" + type;
-        tileObject.transform.position = BattleMapConfig.GridToWorld(gridX, gridY);
+        tileObject.transform.position = BattleMapConfig.GridToWorld(gridX, gridY, activeMap);
         tileObject.transform.localScale = new Vector3(cellSize * 0.95f, cellSize * 0.95f, 1f);
 
         var tile = tileObject.GetComponent<TileButton>();
@@ -391,17 +405,17 @@ public class MapManager : MonoBehaviour
 
     private TileType GetTileTypeFromConfig(int gridX, int gridY)
     {
-        if (BattleMapConfig.IsCastleGrid(gridX, gridY))
+        if (BattleMapConfig.IsCastleGrid(gridX, gridY, activeMap))
         {
             return TileType.Castle;
         }
 
-        if (BattleMapConfig.IsObstacleGrid(gridX, gridY))
+        if (BattleMapConfig.IsObstacleGrid(gridX, gridY, activeMap))
         {
             return TileType.Obstacle;
         }
 
-        if (BattleMapConfig.IsPathGrid(gridX, gridY))
+        if (BattleMapConfig.IsPathGrid(gridX, gridY, activeMap))
         {
             return TileType.Path;
         }
@@ -477,8 +491,9 @@ public class MapManager : MonoBehaviour
         mainCamera.orthographic = true;
         mainCamera.transform.position = new Vector3(0f, 0f, -10f);
 
-        float mapWorldWidth = BattleMapConfig.Width * BattleMapConfig.CellSize;
-        float mapWorldHeight = BattleMapConfig.Height * BattleMapConfig.CellSize;
+        MapConfigData map = BattleMapConfig.IsUsableMap(activeMap) ? activeMap : BattleMapConfig.GetActiveMapConfig();
+        float mapWorldWidth = map.width * BattleMapConfig.CellSize;
+        float mapWorldHeight = map.height * BattleMapConfig.CellSize;
         float aspect = mainCamera.aspect > 0f ? mainCamera.aspect : 16f / 9f;
         float sizeByHeight = mapWorldHeight * 0.5f + 0.9f;
         float sizeByWidth = mapWorldWidth * 0.5f / aspect + 0.9f;

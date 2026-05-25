@@ -49,7 +49,27 @@ public class GameStartData
     public LevelData level;
     public PlayerStateData player;
     public List<TowerConfigData> tower_config;
+    public MapConfigData map;
     public int base_hp;
+}
+
+[Serializable]
+public class GridPointData
+{
+    public int x;
+    public int y;
+}
+
+[Serializable]
+public class MapConfigData
+{
+    public int map_id;
+    public string name;
+    public int width;
+    public int height;
+    public List<GridPointData> path_points;
+    public List<GridPointData> obstacles;
+    public GridPointData castle;
 }
 
 [Serializable]

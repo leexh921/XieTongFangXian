@@ -351,6 +351,10 @@ public class NetworkManager : MonoBehaviour
             initialGold = message.data.level != null ? message.data.level.initial_gold : 0;
             baseHp = message.data.base_hp;
             towerConfigCount = message.data.tower_config != null ? message.data.tower_config.Count : 0;
+            if (!BattleMapConfig.IsUsableMap(message.data.map))
+            {
+                Debug.LogWarning("[NetworkManager] game_start has no usable map_config. Unity will use fallback map.");
+            }
         }
 
         SetStatus("game_start received.");

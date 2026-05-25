@@ -25,7 +25,6 @@ public class MockServerClient : MonoBehaviour
     private const int BasicTowerAttack = 12;
     private const float BasicTowerRange = 1.8f;
     private const float BasicTowerCooldown = 0.8f;
-    private const float TargetRadiusPadding = 0.35f;
     private const float GoldPerSecond = 0.5f;
     private const int BaseMonsterHp = 36;
     private const float BaseMonsterSpeed = 1.3f;
@@ -47,6 +46,7 @@ public class MockServerClient : MonoBehaviour
     private float nextMonsterSpawnTime;
     private float nextStateLogTime;
     private bool gameOverSent;
+    private MapConfigData currentMapConfig;
     private Coroutine gameLoopCoroutine;
     private readonly HashSet<string> occupiedTiles = new HashSet<string>();
     private readonly List<MockTower> mockTowers = new List<MockTower>();
@@ -172,6 +172,7 @@ public class MockServerClient : MonoBehaviour
                         refund_rate = 0.5f
                     }
                 },
+                map = currentMapConfig,
                 base_hp = InitialBaseHp
             }
         };
@@ -333,11 +334,13 @@ public class MockServerClient : MonoBehaviour
         occupiedTiles.Clear();
         mockTowers.Clear();
         mockMonsters.Clear();
+        currentMapConfig = BattleMapConfig.CreateDefaultMapConfig();
     }
 
     private void SpawnMonster()
     {
         int maxHp = GetMonsterMaxHp();
+        Vector2 startPoint = BattleMapConfig.GetPathPoint(currentMapConfig, 0);
         var monster = new MockMonster
         {
             instanceId = "monster_" + MockGameId + "_" + monsterSerial,
@@ -346,7 +349,7 @@ public class MockServerClient : MonoBehaviour
             maxHp = maxHp,
             speed = GetMonsterSpeed(),
             pathIndex = 0,
-            position = BattleMapConfig.GridToWorld(BattleMapConfig.PathGridPoints[0].x, BattleMapConfig.PathGridPoints[0].y)
+            position = startPoint
         };
         monsterSerial++;
         mockMonsters.Add(monster);
@@ -373,13 +376,13 @@ public class MockServerClient : MonoBehaviour
 
     private bool MoveMonster(MockMonster monster, float deltaTime)
     {
-        if (monster.pathIndex >= BattleMapConfig.PathGridPoints.Length - 1)
+        int pathPointCount = BattleMapConfig.GetPathPointCount(currentMapConfig);
+        if (monster.pathIndex >= pathPointCount - 1)
         {
             return true;
         }
 
-        Vector2Int targetGrid = BattleMapConfig.PathGridPoints[monster.pathIndex + 1];
-        Vector2 target = BattleMapConfig.GridToWorld(targetGrid.x, targetGrid.y);
+        Vector2 target = BattleMapConfig.GetPathPoint(currentMapConfig, monster.pathIndex + 1);
         Vector2 next = Vector2.MoveTowards(monster.position, target, monster.speed * deltaTime);
         monster.position = next;
 
@@ -388,7 +391,7 @@ public class MockServerClient : MonoBehaviour
             monster.pathIndex++;
         }
 
-        return monster.pathIndex >= BattleMapConfig.PathGridPoints.Length - 1;
+        return monster.pathIndex >= pathPointCount - 1;
     }
 
     private void ApplyTowerAttacks()
@@ -423,9 +426,8 @@ public class MockServerClient : MonoBehaviour
 
     private MockMonster FindNearestMonsterInRange(MockTower tower)
     {
-        Vector3 towerPosition = BattleMapConfig.GridToWorld(tower.state.grid_x, tower.state.grid_y);
-        float rangeWorld = tower.range * BattleMapConfig.CellSize + TargetRadiusPadding * BattleMapConfig.CellSize;
-        float rangeSqr = rangeWorld * rangeWorld;
+        Vector2 towerPosition = new Vector2(tower.state.grid_x, tower.state.grid_y);
+        float rangeSqr = tower.range * tower.range;
         float bestDistanceSqr = float.MaxValue;
         MockMonster bestTarget = null;
 
@@ -437,7 +439,7 @@ public class MockServerClient : MonoBehaviour
                 continue;
             }
 
-            float distanceSqr = ((Vector2)towerPosition - monster.position).sqrMagnitude;
+            float distanceSqr = (towerPosition - monster.position).sqrMagnitude;
             if (distanceSqr <= rangeSqr && distanceSqr < bestDistanceSqr)
             {
                 bestDistanceSqr = distanceSqr;

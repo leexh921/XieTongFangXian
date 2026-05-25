@@ -18,11 +18,11 @@ public class MonsterView : MonoBehaviour
     private Vector3 targetPosition;
     private bool updatedThisFrame;
 
-    public void Init(string instanceId, int monsterId, int currentHp, int currentMaxHp, Vector2 position)
+    public void Init(string instanceId, int monsterId, int currentHp, int currentMaxHp, Vector3 worldPosition)
     {
         instance_id = instanceId;
         monster_id = monsterId;
-        targetPosition = new Vector3(position.x, position.y, -0.2f);
+        targetPosition = new Vector3(worldPosition.x, worldPosition.y, -0.2f);
         transform.position = targetPosition;
         EnsureRenderer();
         EnsureHpBar();
@@ -35,7 +35,7 @@ public class MonsterView : MonoBehaviour
         transform.position = Vector3.Lerp(transform.position, targetPosition, Time.deltaTime * moveLerpSpeed);
     }
 
-    public void ApplyState(MonsterStateData data)
+    public void ApplyState(MonsterStateData data, Vector3 worldPosition)
     {
         if (data == null)
         {
@@ -44,7 +44,7 @@ public class MonsterView : MonoBehaviour
 
         instance_id = data.instance_id;
         monster_id = data.monster_id;
-        targetPosition = new Vector3(data.x, data.y, -0.2f);
+        targetPosition = new Vector3(worldPosition.x, worldPosition.y, -0.2f);
         SetHp(data.hp, data.max_hp);
         MarkUpdatedThisFrame();
     }

@@ -3,13 +3,14 @@
 import asyncio
 from models import GameState, Player, Monster, Tower
 from db import load_level_config
-from config import PATH_POINTS, TICK_INTERVAL
+from config import MAP_CONFIG, TICK_INTERVAL
 
 
 def init_game(game_id, username, player_id, level_id=1):
     level, tower_config, monster_config, wave_events = load_level_config(level_id)
+    path_points = [(p["x"], p["y"]) for p in MAP_CONFIG["path_points"]]
 
-    game_state = GameState(path_points=PATH_POINTS, base_hp=level["base_hp"])
+    game_state = GameState(path_points=path_points, base_hp=level["base_hp"])
 
     game_state.players[player_id] = Player(
         player_id=player_id,
@@ -35,8 +36,8 @@ def init_game(game_id, username, player_id, level_id=1):
                 reward_gold=row["reward_gold"],
                 score_value=row["score_value"],
                 damage_to_base=row["damage_to_base"],
-                x=PATH_POINTS[0][0],
-                y=PATH_POINTS[0][1],
+                x=path_points[0][0],
+                y=path_points[0][1],
                 path_index=0,
                 is_alive=False,
             )
@@ -50,6 +51,7 @@ def init_game(game_id, username, player_id, level_id=1):
         "level_id": level_id,
         "gold_per_second": level["gold_per_second"],
         "level": level,
+        "map": MAP_CONFIG,
     }
 
     return game_state, tower_templates, spawn_queue, meta
@@ -116,6 +118,7 @@ def build_tower(game_state, tower_templates, player_id, grid_x, grid_y, tower_id
 async def game_tick_generator(game_state, spawn_queue, meta):
     gold_per_second = meta["gold_per_second"]
     game_id = meta["game_id"]
+    path_points = game_state.path_points
 
     while not game_state.is_game_over:
         game_state.time_elapsed += TICK_INTERVAL
@@ -132,7 +135,7 @@ async def game_tick_generator(game_state, spawn_queue, meta):
         while spawn_queue and spawn_queue[0][0] <= game_state.time_elapsed:
             _, monster = spawn_queue.pop(0)
             monster.is_alive = True
-            monster.x, monster.y = PATH_POINTS[0]
+            monster.x, monster.y = path_points[0]
             monster.path_index = 0
             monster._dist_on_segment = 0.0
             game_state.monster_counter += 1
@@ -143,13 +146,13 @@ async def game_tick_generator(game_state, spawn_queue, meta):
         for m in game_state.monsters:
             if not m.is_alive:
                 continue
-            m.advance(PATH_POINTS, TICK_INTERVAL)
+            m.advance(path_points, TICK_INTERVAL)
 
         # 到达终点扣血
         for m in game_state.monsters:
             if not m.is_alive:
                 continue
-            if m.path_index >= len(PATH_POINTS) - 1:
+            if m.path_index >= len(path_points) - 1:
                 game_state.base_hp -= m.damage_to_base
                 m.is_alive = False
 
@@ -212,6 +215,7 @@ def _make_state_update(game_state, meta):
     return {
         "type": "state_update",
         "game_id": meta["game_id"],
+        "player_id": meta["player_id"],
         "data": {
             "game_time_sec": round(game_state.time_elapsed, 2),
             "base_hp": game_state.base_hp,
@@ -247,6 +251,7 @@ def _make_game_over(game_state, meta, is_win):
     return {
         "type": "game_over",
         "game_id": meta["game_id"],
+        "player_id": meta["player_id"],
         "data": {
             "level_id": meta["level_id"],
             "is_win": is_win,

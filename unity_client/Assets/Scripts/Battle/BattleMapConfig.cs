@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 public static class BattleMapConfig
@@ -43,34 +44,152 @@ public static class BattleMapConfig
         get { return PathGridPoints[PathGridPoints.Length - 1]; }
     }
 
+    public static MapConfigData CreateDefaultMapConfig()
+    {
+        var pathPoints = new List<GridPointData>();
+        for (int i = 0; i < PathGridPoints.Length; i++)
+        {
+            pathPoints.Add(ToGridPointData(PathGridPoints[i]));
+        }
+
+        var obstacles = new List<GridPointData>();
+        for (int i = 0; i < ObstacleGridPoints.Length; i++)
+        {
+            obstacles.Add(ToGridPointData(ObstacleGridPoints[i]));
+        }
+
+        return new MapConfigData
+        {
+            map_id = 1,
+            name = "默认地图",
+            width = Width,
+            height = Height,
+            path_points = pathPoints,
+            obstacles = obstacles,
+            castle = ToGridPointData(CastleGridPoint)
+        };
+    }
+
+    public static MapConfigData GetActiveMapConfig()
+    {
+        if (GameManager.Instance != null && GameManager.Instance.HasServerMapConfig())
+        {
+            return GameManager.Instance.GetCurrentMapConfig();
+        }
+
+        return CreateDefaultMapConfig();
+    }
+
     public static Vector3 GridToWorld(int gridX, int gridY)
     {
-        float originX = -(Width - 1) * CellSize * 0.5f;
-        float originY = -(Height - 1) * CellSize * 0.5f;
+        return GridToWorld((float)gridX, gridY, GetActiveMapConfig());
+    }
+
+    public static Vector3 GridToWorld(float gridX, float gridY)
+    {
+        return GridToWorld(gridX, gridY, GetActiveMapConfig());
+    }
+
+    public static Vector3 GridToWorld(float gridX, float gridY, MapConfigData map)
+    {
+        MapConfigData resolvedMap = IsUsableMap(map) ? map : CreateDefaultMapConfig();
+        float originX = -(resolvedMap.width - 1) * CellSize * 0.5f;
+        float originY = -(resolvedMap.height - 1) * CellSize * 0.5f;
         return new Vector3(originX + gridX * CellSize, originY + gridY * CellSize, 0f);
     }
 
     public static bool IsPathGrid(int gridX, int gridY)
     {
-        return Contains(PathGridPoints, gridX, gridY);
+        return IsPathGrid(gridX, gridY, GetActiveMapConfig());
+    }
+
+    public static bool IsPathGrid(int gridX, int gridY, MapConfigData map)
+    {
+        MapConfigData resolvedMap = IsUsableMap(map) ? map : CreateDefaultMapConfig();
+        return Contains(resolvedMap.path_points, gridX, gridY);
     }
 
     public static bool IsObstacleGrid(int gridX, int gridY)
     {
-        return Contains(ObstacleGridPoints, gridX, gridY);
+        return IsObstacleGrid(gridX, gridY, GetActiveMapConfig());
+    }
+
+    public static bool IsObstacleGrid(int gridX, int gridY, MapConfigData map)
+    {
+        MapConfigData resolvedMap = IsUsableMap(map) ? map : CreateDefaultMapConfig();
+        return Contains(resolvedMap.obstacles, gridX, gridY);
     }
 
     public static bool IsCastleGrid(int gridX, int gridY)
     {
-        Vector2Int castle = CastleGridPoint;
-        return castle.x == gridX && castle.y == gridY;
+        return IsCastleGrid(gridX, gridY, GetActiveMapConfig());
     }
 
-    private static bool Contains(Vector2Int[] points, int gridX, int gridY)
+    public static bool IsCastleGrid(int gridX, int gridY, MapConfigData map)
     {
-        for (int i = 0; i < points.Length; i++)
+        GridPointData castle = GetCastlePoint(map);
+        return castle != null && castle.x == gridX && castle.y == gridY;
+    }
+
+    public static GridPointData GetCastlePoint(MapConfigData map)
+    {
+        MapConfigData resolvedMap = IsUsableMap(map) ? map : CreateDefaultMapConfig();
+        if (resolvedMap.castle != null)
         {
-            if (points[i].x == gridX && points[i].y == gridY)
+            return resolvedMap.castle;
+        }
+
+        if (resolvedMap.path_points != null && resolvedMap.path_points.Count > 0)
+        {
+            return resolvedMap.path_points[resolvedMap.path_points.Count - 1];
+        }
+
+        return ToGridPointData(CastleGridPoint);
+    }
+
+    public static Vector2 GetPathPoint(MapConfigData map, int index)
+    {
+        MapConfigData resolvedMap = IsUsableMap(map) ? map : CreateDefaultMapConfig();
+        int clampedIndex = Mathf.Clamp(index, 0, resolvedMap.path_points.Count - 1);
+        GridPointData point = resolvedMap.path_points[clampedIndex];
+        return new Vector2(point.x, point.y);
+    }
+
+    public static int GetPathPointCount(MapConfigData map)
+    {
+        MapConfigData resolvedMap = IsUsableMap(map) ? map : CreateDefaultMapConfig();
+        return resolvedMap.path_points.Count;
+    }
+
+    public static bool IsUsableMap(MapConfigData map)
+    {
+        return map != null
+            && map.width > 0
+            && map.height > 0
+            && map.path_points != null
+            && map.path_points.Count > 0;
+    }
+
+    private static GridPointData ToGridPointData(Vector2Int point)
+    {
+        return new GridPointData
+        {
+            x = point.x,
+            y = point.y
+        };
+    }
+
+    private static bool Contains(List<GridPointData> points, int gridX, int gridY)
+    {
+        if (points == null)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < points.Count; i++)
+        {
+            GridPointData point = points[i];
+            if (point != null && point.x == gridX && point.y == gridY)
             {
                 return true;
             }

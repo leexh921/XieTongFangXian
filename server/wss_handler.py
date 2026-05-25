@@ -106,6 +106,7 @@ async def handle_ws_message(ws, raw):
                     }
                     for t in tower_config
                 ],
+                "map": meta["map"],
                 "base_hp": level["base_hp"],
             }
         ))

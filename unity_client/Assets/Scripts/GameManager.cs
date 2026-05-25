@@ -22,6 +22,7 @@ public class GameManager : MonoBehaviour
 
     [Header("Config")]
     public List<TowerConfigData> tower_config = new List<TowerConfigData>();
+    public MapConfigData current_map_config;
 
     private void Awake()
     {
@@ -79,6 +80,18 @@ public class GameManager : MonoBehaviour
             ? new List<TowerConfigData>(gameStart.tower_config)
             : new List<TowerConfigData>();
 
+        current_map_config = gameStart.map;
+        if (HasServerMapConfig())
+        {
+            Debug.Log("[GameManager] Server map saved. map_id=" + current_map_config.map_id
+                + ", size=" + current_map_config.width + "x" + current_map_config.height
+                + ", path_points=" + current_map_config.path_points.Count);
+        }
+        else
+        {
+            Debug.LogWarning("[GameManager] game_start did not include a usable map. BattleScene will use fallback map.");
+        }
+
         Debug.Log("[GameManager] Game started. game_id=" + game_id + ", tower_config_count=" + tower_config.Count);
     }
 
@@ -134,7 +147,22 @@ public class GameManager : MonoBehaviour
         is_game_started = false;
         is_game_over = false;
         tower_config.Clear();
+        current_map_config = null;
 
         Debug.Log("[GameManager] Game state reset.");
+    }
+
+    public MapConfigData GetCurrentMapConfig()
+    {
+        return current_map_config;
+    }
+
+    public bool HasServerMapConfig()
+    {
+        return current_map_config != null
+            && current_map_config.width > 0
+            && current_map_config.height > 0
+            && current_map_config.path_points != null
+            && current_map_config.path_points.Count > 0;
     }
 }

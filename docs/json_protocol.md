@@ -1,6 +1,6 @@
-# 协同防线 — JSON 通信协议文档 v2.1
+# 协同防线 — JSON 通信协议文档 v2.2
 
-> 版本：v2.1（单人 MVP 版）
+> 版本：v2.2（单人 MVP 版）
 > 传输：WebSocket，JSON 文本
 > 方向：Unity ↔ FastAPI Server
 
@@ -149,6 +149,41 @@
         "refund_rate": 0.5
       }
     ],
+    "map": {
+      "map_id": 1,
+      "name": "默认地图",
+      "width": 14,
+      "height": 8,
+      "path_points": [
+        { "x": 0, "y": 4 },
+        { "x": 1, "y": 4 },
+        { "x": 2, "y": 4 },
+        { "x": 3, "y": 4 },
+        { "x": 4, "y": 4 },
+        { "x": 5, "y": 4 },
+        { "x": 5, "y": 3 },
+        { "x": 5, "y": 2 },
+        { "x": 6, "y": 2 },
+        { "x": 7, "y": 2 },
+        { "x": 8, "y": 2 },
+        { "x": 9, "y": 2 },
+        { "x": 10, "y": 2 },
+        { "x": 11, "y": 2 },
+        { "x": 12, "y": 2 },
+        { "x": 12, "y": 1 },
+        { "x": 12, "y": 0 },
+        { "x": 13, "y": 0 }
+      ],
+      "obstacles": [
+        { "x": 2, "y": 6 },
+        { "x": 3, "y": 6 },
+        { "x": 9, "y": 5 },
+        { "x": 10, "y": 5 },
+        { "x": 1, "y": 1 },
+        { "x": 8, "y": 0 }
+      ],
+      "castle": { "x": 13, "y": 0 }
+    },
     "base_hp": 100
   }
 }
@@ -159,7 +194,19 @@
 | `level` | 关卡基础配置 |
 | `player` | 本玩家初始状态 |
 | `tower_config` | 可用防御塔列表，Unity 据此生成建塔面板 |
+| `map` | 地图逻辑配置，包含宽高、路径、障碍、堡垒 |
 | `base_hp` | 基地初始血量 |
+
+### map 对象
+
+| 字段 | 说明 |
+|---|---|
+| `map_id` | 地图 ID |
+| `name` | 地图名称 |
+| `width` / `height` | 地图逻辑网格宽高 |
+| `path_points[]` | 有序路径点，怪物沿这些 grid 坐标移动 |
+| `obstacles[]` | 障碍格子坐标 |
+| `castle` | 堡垒格子坐标；缺省时可使用路径最后一点 |
 
 ---
 
@@ -311,7 +358,7 @@ Server 每秒广播 8 次游戏状态。Unity 只根据此消息渲染，不做�
 | `monster_id` | 怪物类型 ID |
 | `hp` | 当前血量 |
 | `max_hp` | 最大血量 |
-| `x` / `y` | 当前坐标 |
+| `x` / `y` | 当前浮点 grid 坐标 |
 | `path_index` | 当前所在路径点索引 |
 
 ### tower 对象
@@ -324,6 +371,18 @@ Server 每秒广播 8 次游戏状态。Unity 只根据此消息渲染，不做�
 | `grid_x` / `grid_y` | 所在地块坐标 |
 
 ---
+
+## 3.4.1 坐标语义
+
+| 字段 | 语义 |
+|---|---|
+| `build_request.grid_x / grid_y` | 整数 grid 坐标 |
+| `state_update.monsters[].x / y` | 浮点 grid 坐标，不是 Unity 世界坐标 |
+| `state_update.towers[].grid_x / grid_y` | 整数 grid 坐标 |
+| `tower_config[].range` | grid 单位攻击范围 |
+| `game_start.data.map.path_points / obstacles / castle` | grid 坐标 |
+
+Server 不发送 Unity 世界坐标，也不关心 Unity 的 `CellSize`、摄像机和世界偏移。Unity 根据 `game_start.data.map` 生成地图，并负责将 grid 坐标转换成 Unity world 坐标显示。
 
 ### 3.5 game_over（Server → Unity）
 
@@ -428,6 +487,10 @@ Unity                          Server
 | `tower.attack` | game_start | 攻击力 |
 | `tower.range` | game_start | 攻击范围 |
 | `tower.cooldown` | game_start | 攻击间隔 |
+| `map.width / map.height` | game_start | 地图逻辑宽高 |
+| `map.path_points[]` | game_start | 地图路径 |
+| `map.obstacles[]` | game_start | 障碍格子 |
+| `map.castle` | game_start | 堡垒格子 |
 | `data.player.gold` | state_update | 当前金币 |
 | `data.player.score` | state_update | 当前得分 |
 | `data.player.kill_count` | state_update | 击杀数 |
@@ -435,7 +498,7 @@ Unity                          Server
 | `monsters[].instance_id` | state_update | 怪物实例 ID |
 | `monsters[].monster_id` | state_update | 怪物类型 |
 | `monsters[].hp` | state_update | 怪物血量 |
-| `monsters[].x / .y` | state_update | 怪物坐标 |
+| `monsters[].x / .y` | state_update | 怪物浮点 grid 坐标 |
 | `towers[].instance_id` | state_update | 塔实例 ID |
 | `towers[].grid_x / .grid_y` | state_update | 塔所在坐标 |
 | `build_result.success` | build_result | 建塔是否成功 |

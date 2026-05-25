@@ -90,7 +90,7 @@ public class StateRenderer : MonoBehaviour
             monsters[data.instance_id] = view;
         }
 
-        view.ApplyState(data);
+        view.ApplyState(data, GetMonsterWorldPosition(data));
     }
 
     private MonsterView CreateMonsterView(MonsterStateData data)
@@ -117,8 +117,14 @@ public class StateRenderer : MonoBehaviour
             view = monsterObject.AddComponent<MonsterView>();
         }
 
-        view.Init(data.instance_id, data.monster_id, data.hp, data.max_hp, new Vector2(data.x, data.y));
+        view.Init(data.instance_id, data.monster_id, data.hp, data.max_hp, GetMonsterWorldPosition(data));
         return view;
+    }
+
+    private Vector3 GetMonsterWorldPosition(MonsterStateData data)
+    {
+        MapConfigData map = BattleMapConfig.GetActiveMapConfig();
+        return BattleMapConfig.GridToWorld(data.x, data.y, map);
     }
 
     private GameObject CreateDefaultMonsterObject()
