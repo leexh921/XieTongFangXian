@@ -1,0 +1,104 @@
+:root {
+  --el-color-primary: #6366f1;
+  --el-color-primary-light-3: #818cf8;
+  --el-color-primary-light-5: #a5b4fc;
+  --el-color-primary-light-7: #c7d2fe;
+  --el-color-primary-light-8: #ddd6fe;
+  --el-color-primary-light-9: #ede9fe;
+  --el-color-primary-dark-2: #4f46e5;
+
+  --el-color-success: #10b981;
+  --el-color-warning: #f59e0b;
+  --el-color-danger: #ef4444;
+  --el-color-info: #6366f1;
+
+  --el-border-radius-base: 8px;
+  --el-border-radius-round: 20px;
+  --el-menu-item-height: 48px;
+}
+
+body {
+  margin: 0;
+  font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+
+.el-card {
+  border-radius: 12px !important;
+  border: none !important;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06) !important;
+  transition: box-shadow 0.3s !important;
+}
+
+.el-card:hover {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1) !important;
+}
+
+.el-table {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.el-table th.el-table__cell {
+  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%) !important;
+  color: #475569 !important;
+  font-weight: 600 !important;
+  border-bottom: 2px solid #e2e8f0 !important;
+}
+
+.el-table .el-table__row:hover > td.el-table__cell {
+  background: #eef2ff !important;
+}
+
+.el-button.is-round {
+  padding: 8px 20px;
+}
+
+.el-dialog {
+  border-radius: 16px !important;
+  overflow: hidden;
+}
+
+.el-dialog__header {
+  margin-bottom: 0 !important;
+  margin-top: 0 !important;
+  margin-left: 0 !important;
+  padding: 16px 24px !important;
+  background: linear-gradient(135deg, #6366f1 0%, #818cf8 100%);
+}
+
+.el-dialog__body {
+  padding-top: 24px !important;
+}
+
+.el-dialog__headerbtn {
+  top: 16px !important;
+  right: 16px !important;
+  width: 32px !important;
+  height: 32px !important;
+}
+
+.el-dialog__title {
+  color: #fff !important;
+  font-size: 16px !important;
+  font-weight: 600 !important;
+}
+
+.el-dialog__headerbtn .el-dialog__close {
+  color: #fff !important;
+  font-size: 20px !important;
+}
+
+.el-tag {
+  border-radius: 6px !important;
+  padding: 0 10px !important;
+}
+
+.el-switch.is-checked .el-switch__core {
+  border-color: #6366f1 !important;
+  background-color: #6366f1 !important;
+}
+
+.el-popconfirm .el-button--primary {
+  --el-button-bg-color: #6366f1;
+  --el-button-border-color: #6366f1;
+}

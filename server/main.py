@@ -1,46 +1,26 @@
 # main.py
 
-import asyncio
-import websockets
-from message_router import handle_message, online_players
-from room_manager import remove_player
+import uvicorn
+from fastapi import FastAPI, WebSocket
+from http_api import router
+from wss_handler import handle_ws_message
+from config import SERVER_HOST, SERVER_PORT
 
-HOST = "0.0.0.0"
-PORT = 8765
+app = FastAPI(title="协同防线 Server")
+
+app.include_router(router)
 
 
-async def handler(websocket):
-    print(f"[连接] 新客户端：{websocket.remote_address}")
-    connected_player_id = None
-
+@app.websocket("/ws")
+async def ws_endpoint(websocket: WebSocket):
+    await websocket.accept()
     try:
-        async for message in websocket:
-            # 记录当前连接对应的player_id，用于断线清理
-            import json
-            try:
-                msg = json.loads(message)
-                pid = msg.get("player_id")
-                if pid and pid not in [None]:
-                    connected_player_id = pid
-            except Exception:
-                pass
-
-            await handle_message(websocket, message)
-
-    except websockets.exceptions.ConnectionClosed:
-        print(f"[断线] player_id={connected_player_id}")
-    finally:
-        if connected_player_id:
-            remove_player(connected_player_id)
-            online_players.pop(connected_player_id, None)
-
-
-async def main():
-    print(f"[Server] 启动中，监听 {HOST}:{PORT}")
-    async with websockets.serve(handler, HOST, PORT):
-        print(f"[Server] 已启动，等待连接...")
-        await asyncio.Future()  # 永久运行
+        while True:
+            raw = await websocket.receive_text()
+            await handle_ws_message(websocket, raw)
+    except Exception:
+        pass
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    uvicorn.run(app, host=SERVER_HOST, port=SERVER_PORT)
