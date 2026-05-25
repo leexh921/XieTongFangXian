@@ -28,6 +28,8 @@ public class LoginUI : MonoBehaviour
         {
             networkManager.OnLoginResult -= HandleLoginResult;
             networkManager.OnLoginResult += HandleLoginResult;
+            networkManager.OnStatusMessage -= HandleNetworkStatus;
+            networkManager.OnStatusMessage += HandleNetworkStatus;
         }
 
         SetStatus("请输入昵称");
@@ -38,6 +40,7 @@ public class LoginUI : MonoBehaviour
         if (networkManager != null)
         {
             networkManager.OnLoginResult -= HandleLoginResult;
+            networkManager.OnStatusMessage -= HandleNetworkStatus;
         }
 
         if (loginButton != null)
@@ -107,6 +110,24 @@ public class LoginUI : MonoBehaviour
         StartCoroutine(LoadLobbyAfterDelay());
     }
 
+    private void HandleNetworkStatus(string message)
+    {
+        if (string.IsNullOrEmpty(message))
+        {
+            return;
+        }
+
+        SetStatus(message);
+
+        if (loginButton != null
+            && networkManager != null
+            && !networkManager.use_mock_server
+            && IsFailureStatus(message))
+        {
+            loginButton.interactable = true;
+        }
+    }
+
     private void ResolveReferences()
     {
         if (networkManager == null)
@@ -128,6 +149,16 @@ public class LoginUI : MonoBehaviour
         }
 
         Debug.Log("[LoginUI] " + message);
+    }
+
+    private bool IsFailureStatus(string message)
+    {
+        return message.IndexOf("failed", System.StringComparison.OrdinalIgnoreCase) >= 0
+            || message.IndexOf("error", System.StringComparison.OrdinalIgnoreCase) >= 0
+            || message.IndexOf("not connected", System.StringComparison.OrdinalIgnoreCase) >= 0
+            || message.IndexOf("closed", System.StringComparison.OrdinalIgnoreCase) >= 0
+            || message.Contains("失败")
+            || message.Contains("未连接");
     }
 
     private IEnumerator LoadLobbyAfterDelay()

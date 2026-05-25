@@ -12,8 +12,13 @@ public class ProtocolMessage
 }
 
 [Serializable]
-public class ProtocolMessage<TData> : ProtocolMessage
+public class ProtocolMessage<TData>
 {
+    public string type;
+    public string request_id;
+    public int game_id;
+    public int player_id;
+    public long timestamp;
     public TData data;
 }
 

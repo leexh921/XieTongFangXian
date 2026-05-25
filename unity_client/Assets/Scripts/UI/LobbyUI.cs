@@ -179,6 +179,8 @@ public class LobbyUI : MonoBehaviour
 
         networkManager.OnGameStart -= HandleGameStart;
         networkManager.OnGameStart += HandleGameStart;
+        networkManager.OnStatusMessage -= HandleNetworkStatus;
+        networkManager.OnStatusMessage += HandleNetworkStatus;
     }
 
     private void UnsubscribeNetworkEvents()
@@ -186,6 +188,7 @@ public class LobbyUI : MonoBehaviour
         if (networkManager != null)
         {
             networkManager.OnGameStart -= HandleGameStart;
+            networkManager.OnStatusMessage -= HandleNetworkStatus;
         }
     }
 
@@ -197,6 +200,34 @@ public class LobbyUI : MonoBehaviour
         }
 
         Debug.Log("[LobbyUI] " + message);
+    }
+
+    private void HandleNetworkStatus(string message)
+    {
+        if (string.IsNullOrEmpty(message))
+        {
+            return;
+        }
+
+        SetStatus(message);
+
+        if (startGameButton != null
+            && networkManager != null
+            && !networkManager.use_mock_server
+            && IsFailureStatus(message))
+        {
+            startGameButton.interactable = true;
+        }
+    }
+
+    private bool IsFailureStatus(string message)
+    {
+        return message.IndexOf("failed", System.StringComparison.OrdinalIgnoreCase) >= 0
+            || message.IndexOf("error", System.StringComparison.OrdinalIgnoreCase) >= 0
+            || message.IndexOf("not connected", System.StringComparison.OrdinalIgnoreCase) >= 0
+            || message.IndexOf("closed", System.StringComparison.OrdinalIgnoreCase) >= 0
+            || message.Contains("失败")
+            || message.Contains("未连接");
     }
 
     private IEnumerator LoadBattleAfterDelay()

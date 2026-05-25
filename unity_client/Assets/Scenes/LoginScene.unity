@@ -1395,6 +1395,8 @@ MonoBehaviour:
   score: 0
   kill_count: 0
   base_hp: 0
+  time_used: 0
+  is_win: 0
   is_game_started: 0
   is_game_over: 0
   tower_config: []
@@ -1410,8 +1412,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 06e8db01cfaf6804f82d668cfa983513, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  use_mock_server: 1
-  server_url: ws://192.168.221.81:8765/ws
+  use_mock_server: 0
+  server_url: ws://192.168.61.128:8765/ws
 --- !u!4 &1863301902
 Transform:
   m_ObjectHideFlags: 0

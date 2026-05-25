@@ -1,4 +1,6 @@
 using System;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using UnityEngine;
 
 public class NetworkManager : MonoBehaviour
@@ -9,14 +11,17 @@ public class NetworkManager : MonoBehaviour
     public event Action<BuildResultData> OnBuildResult;
     public event Action<StateUpdateData> OnStateUpdate;
     public event Action<GameOverData> OnGameOver;
+    public event Action<string> OnStatusMessage;
 
     [Header("Connection")]
     public bool use_mock_server = true;
     public string server_url = "ws://192.168.221.81:8765/ws";
     public bool IsLoggedIn { get; private set; }
+    public bool IsConnected { get { return isConnected; } }
     public string LastStatusMessage { get; private set; }
 
     private MockServerClient mockServerClient;
+    private WebSocketClient webSocketClient;
     private bool isConnected;
     private int requestCounter;
     private float nextStateUpdateLogTime;
@@ -32,17 +37,29 @@ public class NetworkManager : MonoBehaviour
         Instance = this;
         DontDestroyOnLoad(gameObject);
         EnsureMockServerClient();
+        ResolveWebSocketClient(true);
     }
 
     private void OnEnable()
     {
         EnsureMockServerClient();
+        ResolveWebSocketClient(true);
         SubscribeMockEvents();
+        SubscribeWebSocketEvents();
     }
 
     private void OnDisable()
     {
         UnsubscribeMockEvents();
+        UnsubscribeWebSocketEvents();
+    }
+
+    private void OnDestroy()
+    {
+        if (webSocketClient != null)
+        {
+            webSocketClient.Close();
+        }
     }
 
     public void Connect()
@@ -51,114 +68,102 @@ public class NetworkManager : MonoBehaviour
         {
             EnsureMockServerClient();
             isConnected = true;
-            LastStatusMessage = "Mock mode started.";
+            SetStatus("Mock mode started.");
             Debug.Log("[NetworkManager] Mock mode started. No real WebSocket connection will be opened.");
             return;
         }
 
+        ResolveWebSocketClient(true);
+        if (webSocketClient == null)
+        {
+            isConnected = false;
+            SetStatus("WebSocketClient is missing.");
+            Debug.LogWarning("[NetworkManager] WebSocketClient is missing.");
+            return;
+        }
+
+        if (webSocketClient.IsConnected)
+        {
+            isConnected = true;
+            SetStatus("WebSocket already connected.");
+            return;
+        }
+
         isConnected = false;
-        LastStatusMessage = "Real WebSocket not implemented yet.";
-        Debug.LogWarning("[NetworkManager] Real WebSocket not implemented yet. Target URL: " + server_url);
+        SetStatus("Connecting WebSocket server...");
+        Debug.Log("[NetworkManager] Connecting WebSocket server: " + server_url);
+        webSocketClient.Connect(server_url);
     }
 
     public void Login(string username)
     {
-        if (!isConnected)
+        var request = CreateRequest(MessageTypes.LoginRequest, new LoginRequestData
         {
-            Connect();
-        }
-
-        var request = new ProtocolMessage<LoginRequestData>
-        {
-            type = MessageTypes.LoginRequest,
-            request_id = NextRequestId(),
-            timestamp = CurrentTimestampMilliseconds(),
-            data = new LoginRequestData
-            {
-                username = username
-            }
-        };
+            username = username
+        });
 
         if (use_mock_server)
         {
-            LastStatusMessage = "Sending login_request to mock.";
+            if (!isConnected)
+            {
+                Connect();
+            }
+
+            SetStatus("Sending login_request to mock.");
             Debug.Log("[NetworkManager] Send login_request to mock: " + JsonUtility.ToJson(request));
             mockServerClient.SendLoginRequest(request);
             return;
         }
 
-        LastStatusMessage = "Real WebSocket not implemented yet.";
-        Debug.LogWarning("[NetworkManager] Real WebSocket not implemented yet. login_request was not sent.");
+        SendWebSocketMessage(request, MessageTypes.LoginRequest);
     }
 
     public void StartGame(int levelId)
     {
-        if (!isConnected)
+        var request = CreateRequest(MessageTypes.StartGameRequest, new StartGameRequestData
         {
-            Connect();
-        }
-
-        int playerId = GameManager.Instance != null ? GameManager.Instance.player_id : 0;
-
-        var request = new ProtocolMessage<StartGameRequestData>
-        {
-            type = MessageTypes.StartGameRequest,
-            request_id = NextRequestId(),
-            player_id = playerId,
-            timestamp = CurrentTimestampMilliseconds(),
-            data = new StartGameRequestData
-            {
-                level_id = levelId
-            }
-        };
+            level_id = levelId
+        });
 
         if (use_mock_server)
         {
-            LastStatusMessage = "Sending start_game_request to mock.";
+            if (!isConnected)
+            {
+                Connect();
+            }
+
+            SetStatus("Sending start_game_request to mock.");
             Debug.Log("[NetworkManager] Send start_game_request to mock: " + JsonUtility.ToJson(request));
             mockServerClient.SendStartGameRequest(request);
             return;
         }
 
-        LastStatusMessage = "Real WebSocket not implemented yet.";
-        Debug.LogWarning("[NetworkManager] Real WebSocket not implemented yet. start_game_request was not sent.");
+        SendWebSocketMessage(request, MessageTypes.StartGameRequest);
     }
 
     public void SendBuildRequest(int towerId, int gridX, int gridY)
     {
-        if (!isConnected)
+        var request = CreateRequest(MessageTypes.BuildRequest, new BuildRequestData
         {
-            Connect();
-        }
-
-        int playerId = GameManager.Instance != null ? GameManager.Instance.player_id : 0;
-        int gameId = GameManager.Instance != null ? GameManager.Instance.game_id : 0;
-
-        var request = new ProtocolMessage<BuildRequestData>
-        {
-            type = MessageTypes.BuildRequest,
-            request_id = NextRequestId(),
-            game_id = gameId,
-            player_id = playerId,
-            timestamp = CurrentTimestampMilliseconds(),
-            data = new BuildRequestData
-            {
-                tower_id = towerId,
-                grid_x = gridX,
-                grid_y = gridY
-            }
-        };
+            tower_id = towerId,
+            grid_x = gridX,
+            grid_y = gridY
+        });
 
         if (use_mock_server)
         {
-            LastStatusMessage = "Sending build_request to mock.";
+            if (!isConnected)
+            {
+                Connect();
+            }
+
+            SetStatus("Sending build_request to mock.");
             Debug.Log("[NetworkManager] Send build_request to mock: " + JsonUtility.ToJson(request));
             mockServerClient.SendBuildRequest(request);
             return;
         }
 
-        LastStatusMessage = "Real WebSocket not implemented yet.";
-        Debug.LogWarning("[NetworkManager] Real WebSocket not implemented yet. build_request was not sent.");
+        SendWebSocketMessage(request, MessageTypes.BuildRequest);
     }
 
     [ContextMenu("Mock Test Login")]
@@ -177,7 +182,127 @@ public class NetworkManager : MonoBehaviour
         StartGame(1);
     }
 
+    private ProtocolMessage<TData> CreateRequest<TData>(string type, TData data)
+    {
+        GameManager gameManager = GetGameManager();
+        int playerId = gameManager != null ? gameManager.player_id : 0;
+        int gameId = gameManager != null ? gameManager.game_id : 0;
+
+        return new ProtocolMessage<TData>
+        {
+            type = type,
+            request_id = NextRequestId(),
+            game_id = gameId,
+            player_id = playerId,
+            timestamp = CurrentTimestampMilliseconds(),
+            data = data
+        };
+    }
+
+    private void SendWebSocketMessage<TData>(ProtocolMessage<TData> request, string messageType)
+    {
+        ResolveWebSocketClient(true);
+
+        if (webSocketClient == null)
+        {
+            SetStatus("WebSocketClient is missing.");
+            Debug.LogWarning("[NetworkManager] WebSocketClient is missing. " + messageType + " was not sent.");
+            return;
+        }
+
+        if (!webSocketClient.IsConnected && !webSocketClient.IsConnecting)
+        {
+            Connect();
+        }
+
+        string json = JsonConvert.SerializeObject(request);
+        SetStatus("Sending " + messageType + " to WebSocket.");
+        Debug.Log("[NetworkManager] Send " + messageType + " to WebSocket: " + json);
+        webSocketClient.Send(json);
+    }
+
+    private void HandleWebSocketMessage(string json)
+    {
+        if (string.IsNullOrEmpty(json))
+        {
+            Debug.LogWarning("[NetworkManager] Ignored empty WebSocket message.");
+            return;
+        }
+
+        Debug.Log("[NetworkManager] Received WebSocket message: " + json);
+
+        try
+        {
+            JObject envelope = JObject.Parse(json);
+            string messageType = envelope.Value<string>("type");
+            if (string.IsNullOrEmpty(messageType))
+            {
+                HandleError("Invalid message: missing type.");
+                return;
+            }
+
+            switch (messageType)
+            {
+                case MessageTypes.LoginResult:
+                    HandleLoginResult(envelope.ToObject<ProtocolMessage<LoginResultData>>());
+                    break;
+                case MessageTypes.GameStart:
+                    HandleGameStart(envelope.ToObject<ProtocolMessage<GameStartData>>());
+                    break;
+                case MessageTypes.StateUpdate:
+                    HandleStateUpdate(envelope.ToObject<ProtocolMessage<StateUpdateData>>());
+                    break;
+                case MessageTypes.BuildResult:
+                    HandleBuildResult(envelope.ToObject<ProtocolMessage<BuildResultData>>());
+                    break;
+                case MessageTypes.GameOver:
+                    HandleGameOver(envelope.ToObject<ProtocolMessage<GameOverData>>());
+                    break;
+                case MessageTypes.Error:
+                    HandleError(envelope.ToObject<ProtocolMessage<ErrorData>>());
+                    break;
+                default:
+                    HandleError("Unknown message type: " + messageType);
+                    break;
+            }
+        }
+        catch (Exception exception)
+        {
+            HandleError("Failed to parse WebSocket message: " + exception.Message);
+            Debug.LogWarning("[NetworkManager] Parse WebSocket message failed: " + exception);
+        }
+    }
+
     private void HandleMockLoginResult(ProtocolMessage<LoginResultData> message)
+    {
+        Debug.Log("[NetworkManager] Received mock login_result: " + JsonUtility.ToJson(message));
+        HandleLoginResult(message);
+    }
+
+    private void HandleMockGameStart(ProtocolMessage<GameStartData> message)
+    {
+        Debug.Log("[NetworkManager] Received mock game_start: " + JsonUtility.ToJson(message));
+        HandleGameStart(message);
+    }
+
+    private void HandleMockBuildResult(ProtocolMessage<BuildResultData> message)
+    {
+        Debug.Log("[NetworkManager] Received mock build_result: " + JsonUtility.ToJson(message));
+        HandleBuildResult(message);
+    }
+
+    private void HandleMockStateUpdate(ProtocolMessage<StateUpdateData> message)
+    {
+        HandleStateUpdate(message);
+    }
+
+    private void HandleMockGameOver(ProtocolMessage<GameOverData> message)
+    {
+        Debug.Log("[NetworkManager] Received mock game_over: " + JsonUtility.ToJson(message));
+        HandleGameOver(message);
+    }
+
+    private void HandleLoginResult(ProtocolMessage<LoginResultData> message)
     {
         if (message == null)
         {
@@ -185,11 +310,10 @@ public class NetworkManager : MonoBehaviour
             return;
         }
 
-        Debug.Log("[NetworkManager] Received mock login_result: " + JsonUtility.ToJson(message));
-
-        if (GameManager.Instance != null)
+        GameManager gameManager = GetGameManager();
+        if (gameManager != null)
         {
-            GameManager.Instance.SetLoginResult(message.data);
+            gameManager.SetLoginResult(message.data);
         }
         else
         {
@@ -197,11 +321,11 @@ public class NetworkManager : MonoBehaviour
         }
 
         IsLoggedIn = message.data != null && message.data.success;
-        LastStatusMessage = message.data != null ? message.data.message : "login_result data is null";
+        SetStatus(message.data != null ? message.data.message : "login_result data is null");
         OnLoginResult?.Invoke(message.data);
     }
 
-    private void HandleMockGameStart(ProtocolMessage<GameStartData> message)
+    private void HandleGameStart(ProtocolMessage<GameStartData> message)
     {
         if (message == null)
         {
@@ -209,11 +333,10 @@ public class NetworkManager : MonoBehaviour
             return;
         }
 
-        Debug.Log("[NetworkManager] Received mock game_start: " + JsonUtility.ToJson(message));
-
-        if (GameManager.Instance != null)
+        GameManager gameManager = GetGameManager();
+        if (gameManager != null)
         {
-            GameManager.Instance.SetGameStart(message.game_id, message.data);
+            gameManager.SetGameStart(message.game_id, message.data);
         }
         else
         {
@@ -230,7 +353,7 @@ public class NetworkManager : MonoBehaviour
             towerConfigCount = message.data.tower_config != null ? message.data.tower_config.Count : 0;
         }
 
-        LastStatusMessage = "game_start received.";
+        SetStatus("game_start received.");
         Debug.Log("[NetworkManager] game_start applied. game_id=" + message.game_id
             + ", initial_gold=" + initialGold
             + ", base_hp=" + baseHp
@@ -238,7 +361,7 @@ public class NetworkManager : MonoBehaviour
         OnGameStart?.Invoke(message.data);
     }
 
-    private void HandleMockBuildResult(ProtocolMessage<BuildResultData> message)
+    private void HandleBuildResult(ProtocolMessage<BuildResultData> message)
     {
         if (message == null)
         {
@@ -246,16 +369,15 @@ public class NetworkManager : MonoBehaviour
             return;
         }
 
-        Debug.Log("[NetworkManager] Received mock build_result: " + JsonUtility.ToJson(message));
-
-        if (message.data != null && message.data.player != null && GameManager.Instance != null)
+        GameManager gameManager = GetGameManager();
+        if (message.data != null && message.data.player != null && gameManager != null)
         {
-            GameManager.Instance.UpdatePlayerState(message.data.player, GameManager.Instance.base_hp);
+            gameManager.UpdatePlayerState(message.data.player, gameManager.base_hp);
         }
 
-        LastStatusMessage = message.data != null && message.data.success
+        SetStatus(message.data != null && message.data.success
             ? "build_result success."
-            : "build_result failed.";
+            : "build_result failed.");
 
         if (message.data != null)
         {
@@ -273,7 +395,7 @@ public class NetworkManager : MonoBehaviour
         OnBuildResult?.Invoke(message.data);
     }
 
-    private void HandleMockStateUpdate(ProtocolMessage<StateUpdateData> message)
+    private void HandleStateUpdate(ProtocolMessage<StateUpdateData> message)
     {
         if (message == null)
         {
@@ -281,14 +403,15 @@ public class NetworkManager : MonoBehaviour
             return;
         }
 
-        if (message != null && message.data != null && GameManager.Instance != null)
+        GameManager gameManager = GetGameManager();
+        if (message.data != null && gameManager != null)
         {
             if (message.game_id > 0)
             {
-                GameManager.Instance.game_id = message.game_id;
+                gameManager.game_id = message.game_id;
             }
 
-            GameManager.Instance.UpdatePlayerState(message.data.player, message.data.base_hp);
+            gameManager.UpdatePlayerState(message.data.player, message.data.base_hp);
         }
 
         int monsterCount = message.data != null && message.data.monsters != null ? message.data.monsters.Count : 0;
@@ -308,7 +431,7 @@ public class NetworkManager : MonoBehaviour
         OnStateUpdate?.Invoke(message.data);
     }
 
-    private void HandleMockGameOver(ProtocolMessage<GameOverData> message)
+    private void HandleGameOver(ProtocolMessage<GameOverData> message)
     {
         if (message == null)
         {
@@ -316,14 +439,13 @@ public class NetworkManager : MonoBehaviour
             return;
         }
 
-        Debug.Log("[NetworkManager] Received mock game_over: " + JsonUtility.ToJson(message));
-
-        if (GameManager.Instance != null)
+        GameManager gameManager = GetGameManager();
+        if (gameManager != null)
         {
-            GameManager.Instance.SetGameOver(message.data);
+            gameManager.SetGameOver(message.data);
         }
 
-        LastStatusMessage = "game_over received.";
+        SetStatus("game_over received.");
 
         if (message.data != null)
         {
@@ -339,6 +461,62 @@ public class NetworkManager : MonoBehaviour
         OnGameOver?.Invoke(message.data);
     }
 
+    private void HandleError(ProtocolMessage<ErrorData> message)
+    {
+        if (message == null || message.data == null)
+        {
+            HandleError("Server returned an empty error message.");
+            return;
+        }
+
+        string text = string.IsNullOrEmpty(message.data.code)
+            ? message.data.message
+            : message.data.code + ": " + message.data.message;
+        HandleError(text);
+    }
+
+    private void HandleError(string message)
+    {
+        string text = string.IsNullOrEmpty(message) ? "Unknown network error." : message;
+        SetStatus(text);
+        Debug.LogWarning("[NetworkManager] " + text);
+    }
+
+    private void HandleWebSocketConnected()
+    {
+        isConnected = true;
+        SetStatus("WebSocket connected.");
+        Debug.Log("[NetworkManager] WebSocket connected.");
+    }
+
+    private void HandleWebSocketClosed()
+    {
+        isConnected = false;
+
+        if (string.IsNullOrEmpty(LastStatusMessage) || LastStatusMessage.IndexOf("failed", StringComparison.OrdinalIgnoreCase) < 0)
+        {
+            SetStatus("WebSocket closed.");
+        }
+
+        Debug.Log("[NetworkManager] WebSocket closed.");
+    }
+
+    private void HandleWebSocketError(string message)
+    {
+        isConnected = false;
+        HandleError(message);
+    }
+
+    private GameManager GetGameManager()
+    {
+        if (GameManager.Instance != null)
+        {
+            return GameManager.Instance;
+        }
+
+        return FindObjectOfType<GameManager>();
+    }
+
     private void EnsureMockServerClient()
     {
         if (mockServerClient != null)
@@ -350,6 +528,20 @@ public class NetworkManager : MonoBehaviour
         if (mockServerClient == null)
         {
             mockServerClient = gameObject.AddComponent<MockServerClient>();
+        }
+    }
+
+    private void ResolveWebSocketClient(bool createIfMissing)
+    {
+        if (webSocketClient != null)
+        {
+            return;
+        }
+
+        webSocketClient = GetComponent<WebSocketClient>();
+        if (webSocketClient == null && createIfMissing)
+        {
+            webSocketClient = gameObject.AddComponent<WebSocketClient>();
         }
     }
 
@@ -380,6 +572,39 @@ public class NetworkManager : MonoBehaviour
         mockServerClient.BuildResultReceived -= HandleMockBuildResult;
         mockServerClient.StateUpdateReceived -= HandleMockStateUpdate;
         mockServerClient.GameOverReceived -= HandleMockGameOver;
+    }
+
+    private void SubscribeWebSocketEvents()
+    {
+        if (webSocketClient == null)
+        {
+            return;
+        }
+
+        UnsubscribeWebSocketEvents();
+        webSocketClient.Connected += HandleWebSocketConnected;
+        webSocketClient.Closed += HandleWebSocketClosed;
+        webSocketClient.MessageReceived += HandleWebSocketMessage;
+        webSocketClient.ErrorReceived += HandleWebSocketError;
+    }
+
+    private void UnsubscribeWebSocketEvents()
+    {
+        if (webSocketClient == null)
+        {
+            return;
+        }
+
+        webSocketClient.Connected -= HandleWebSocketConnected;
+        webSocketClient.Closed -= HandleWebSocketClosed;
+        webSocketClient.MessageReceived -= HandleWebSocketMessage;
+        webSocketClient.ErrorReceived -= HandleWebSocketError;
+    }
+
+    private void SetStatus(string message)
+    {
+        LastStatusMessage = message;
+        OnStatusMessage?.Invoke(message);
     }
 
     private string NextRequestId()
