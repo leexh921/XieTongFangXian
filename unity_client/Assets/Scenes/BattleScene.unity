@@ -1683,6 +1683,16 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   towerSprites: []
   monsterSprites: []
+  towerSprites:
+  - tower_id: 1
+    sprite: {fileID: 21300000, guid: 9150ff9a3f88646ddaf1ed327afa1315, type: 3}
+  - tower_id: 2
+    sprite: {fileID: 21300000, guid: c84d25441265a4e42b000f20f8fb20d8, type: 3}
+  monsterSprites:
+  - monster_id: 1
+    sprite: {fileID: 0}
+  - monster_id: 0
+    sprite: {fileID: 0}
   defaultTowerSprite: {fileID: 0}
   defaultMonsterSprite: {fileID: 0}
 --- !u!1 &793258780
