@@ -4,6 +4,12 @@ using UnityEngine;
 
 public class MapManager : MonoBehaviour
 {
+    private const int EmptySortingOrder = -30;
+    private const int BuildableSortingOrder = -20;
+    private const int PathSortingOrder = -10;
+    private const int ObstacleSortingOrder = -5;
+    private const int CastleSortingOrder = -4;
+
     [Header("Grid")]
     public int width = BattleMapConfig.Width;
     public int height = BattleMapConfig.Height;
@@ -159,21 +165,21 @@ public class MapManager : MonoBehaviour
                     tile.tileType = TileType.Obstacle;
                     tile.is_buildable = false;
 
-                    CreateOverlay(obstaclePrefab, x, y, obstacleScale, "Obstacle");
+                    CreateOverlay(obstaclePrefab, x, y, obstacleScale, "Obstacle", TileType.Obstacle);
                 }
                 else if (overlayType == TileType.Path)
                 {
                     tile.tileType = TileType.Path;
                     tile.is_buildable = false;
 
-                    CreateOverlay(pathPrefab, x, y, pathScale, "Path");
+                    CreateOverlay(pathPrefab, x, y, pathScale, "Path", TileType.Path);
                 }
                 else if (overlayType == TileType.Castle)
                 {
                     tile.tileType = TileType.Castle;
                     tile.is_buildable = false;
 
-                    CreateOverlay(castlePrefab, x, y, castleScale, "Castle");
+                    CreateOverlay(castlePrefab, x, y, castleScale, "Castle", TileType.Castle);
                 }
             }
         }
@@ -242,6 +248,11 @@ public class MapManager : MonoBehaviour
                 GetSpriteForTile(tile.tileType, gridX, gridY),
                 new Color(0.38f, 0.72f, 0.42f, 1f)
             );
+
+            if (tile.spriteRenderer != null)
+            {
+                tile.spriteRenderer.sortingOrder = GetSortingOrderForTile(TileType.Buildable);
+            }
         }
     }
 
@@ -315,18 +326,20 @@ public class MapManager : MonoBehaviour
 
         tile.spriteRenderer = renderer;
         tile.Init(gridX, gridY, type, this);
+        renderer.sortingOrder = GetSortingOrderForTile(TileType.Buildable);
 
         // 底图永远显示草地
         tile.SetVisual(
             GetBuildableSprite(gridX, gridY),
             GetColorForTile(TileType.Buildable)
         );
+        renderer.sortingOrder = GetSortingOrderForTile(TileType.Buildable);
 
         tiles[MakeKey(gridX, gridY)] = tile;
         tileMap[new Vector2Int(gridX, gridY)] = tile;
     }
 
-    private void CreateOverlay(GameObject prefab, int gridX, int gridY, Vector3 scale, string objectName)
+    private void CreateOverlay(GameObject prefab, int gridX, int gridY, Vector3 scale, string objectName, TileType tileType)
     {
         if (prefab == null)
         {
@@ -345,6 +358,7 @@ public class MapManager : MonoBehaviour
         obj.name = objectName + "_" + gridX + "_" + gridY;
         obj.transform.position = BattleMapConfig.GridToWorld(gridX, gridY, activeMap);
         obj.transform.localScale = scale;
+        ApplySortingOrderToRenderers(obj, GetSortingOrderForTile(tileType));
 
         // 非常重要：覆盖物不允许遮挡点击
         Collider2D[] colliders = obj.GetComponentsInChildren<Collider2D>();
@@ -450,6 +464,7 @@ public class MapManager : MonoBehaviour
         var tileObject = new GameObject("Tile");
         var renderer = tileObject.AddComponent<SpriteRenderer>();
         renderer.sprite = fallbackSprite;
+        renderer.sortingOrder = GetSortingOrderForTile(TileType.Buildable);
         tileObject.AddComponent<BoxCollider2D>();
         tileObject.AddComponent<TileButton>();
         return tileObject;
@@ -670,6 +685,52 @@ public class MapManager : MonoBehaviour
 
             default:
                 return new Color(0.12f, 0.14f, 0.18f, 0.45f);
+        }
+    }
+
+    private int GetSortingOrderForTile(TileType type)
+    {
+        switch (type)
+        {
+            case TileType.Path:
+                return PathSortingOrder;
+
+            case TileType.Obstacle:
+                return ObstacleSortingOrder;
+
+            case TileType.Castle:
+                return CastleSortingOrder;
+
+            case TileType.Empty:
+                return EmptySortingOrder;
+
+            default:
+                return BuildableSortingOrder;
+        }
+    }
+
+    private void ApplySortingOrderToRenderers(GameObject target, int sortingOrder)
+    {
+        if (target == null)
+        {
+            return;
+        }
+
+        SpriteRenderer[] renderers = target.GetComponentsInChildren<SpriteRenderer>(true);
+        if (renderers.Length == 0)
+        {
+            return;
+        }
+
+        int lowestOrder = renderers[0].sortingOrder;
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            lowestOrder = Mathf.Min(lowestOrder, renderers[i].sortingOrder);
+        }
+
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            renderers[i].sortingOrder = sortingOrder + (renderers[i].sortingOrder - lowestOrder);
         }
     }
 
