@@ -36,6 +36,20 @@ public class MapManager : MonoBehaviour
     public Sprite castleSprite;
     public Sprite emptySprite;
 
+    [Header("Tile Scale")]
+    public Vector3 buildableScale = Vector3.one;
+    public Vector3 pathScale = Vector3.one;
+    public Vector3 obstacleScale = Vector3.one;
+    public Vector3 castleScale = Vector3.one;
+
+    [Header("Grid")]
+    public Transform overlayRoot;
+
+[Header("Overlay Prefabs")]
+public GameObject obstaclePrefab;
+public GameObject pathPrefab;
+public GameObject castlePrefab;
+
     private readonly Dictionary<string, TileButton> tiles = new Dictionary<string, TileButton>();
     private readonly Dictionary<Vector2Int, TileButton> tileMap = new Dictionary<Vector2Int, TileButton>();
     private readonly Dictionary<string, TowerView> towerInstances = new Dictionary<string, TowerView>();
@@ -120,13 +134,62 @@ public class MapManager : MonoBehaviour
         cellSize = BattleMapConfig.CellSize;
 
         for (int y = 0; y < height; y++)
+{
+    for (int x = 0; x < width; x++)
+    {
+        // 永远先生成草地
+        CreateTile(x, y, TileType.Buildable);
+
+        TileButton tile = GetTile(x, y);
+
+        TileType overlayType = GetTileTypeFromConfig(x, y);
+
+        // 障碍物
+        if (overlayType == TileType.Obstacle)
         {
-            for (int x = 0; x < width; x++)
-            {
-                TileType type = GetTileTypeFromConfig(x, y);
-                CreateTile(x, y, type);
-            }
+            tile.tileType = TileType.Obstacle;
+            tile.is_buildable = false;
+
+            CreateOverlay(
+                obstaclePrefab,
+                x,
+                y,
+                obstacleScale,
+                "Obstacle"
+            );
         }
+
+        // 路径
+        else if (overlayType == TileType.Path)
+        {
+            tile.tileType = TileType.Path;
+            tile.is_buildable = false;
+
+            CreateOverlay(
+                pathPrefab,
+                x,
+                y,
+                pathScale,
+                "Path"
+            );
+        }
+
+        // 城堡
+        else if (overlayType == TileType.Castle)
+        {
+            tile.tileType = TileType.Castle;
+            tile.is_buildable = false;
+
+            CreateOverlay(
+                castlePrefab,
+                x,
+                y,
+                castleScale,
+                "Castle"
+            );
+        }
+    }
+}
     }
 
     public void OnTileClicked(int gridX, int gridY)
@@ -238,8 +301,7 @@ public class MapManager : MonoBehaviour
         }
 
         tileObject.name = "Tile_" + gridX + "_" + gridY + "_" + type;
-        tileObject.transform.position = BattleMapConfig.GridToWorld(gridX, gridY, activeMap);
-        tileObject.transform.localScale = new Vector3(cellSize * 0.95f, cellSize * 0.95f, 1f);
+tileObject.transform.position = BattleMapConfig.GridToWorld(gridX, gridY, activeMap);
 
         var tile = tileObject.GetComponent<TileButton>();
         if (tile == null)
@@ -261,11 +323,65 @@ public class MapManager : MonoBehaviour
 
         tile.spriteRenderer = renderer;
         tile.Init(gridX, gridY, type, this);
-        tile.SetVisual(GetSpriteForTile(type, gridX, gridY), GetColorForTile(type));
+        tile.SetVisual(
+    GetBuildableSprite(gridX, gridY),
+    GetColorForTile(TileType.Buildable)
+);
+        tileObject.transform.localScale = GetScaleForTile(type);
 
         tiles[MakeKey(gridX, gridY)] = tile;
         tileMap[new Vector2Int(gridX, gridY)] = tile;
     }
+
+    private void CreateOverlay(
+    GameObject prefab,
+    int gridX,
+    int gridY,
+    Vector3 scale,
+    string objectName)
+{
+    if (prefab == null)
+    {
+        return;
+    }
+
+    if (overlayRoot == null)
+    {
+        GameObject root = GameObject.Find("OverlayRoot");
+
+        if (root == null)
+        {
+            root = new GameObject("OverlayRoot");
+            root.transform.SetParent(transform, false);
+        }
+
+        overlayRoot = root.transform;
+    }
+
+    GameObject obj =
+        Instantiate(prefab, overlayRoot);
+
+    obj.name =
+        objectName + "_" + gridX + "_" + gridY;
+
+    obj.transform.position =
+        BattleMapConfig.GridToWorld(
+            gridX,
+            gridY,
+            activeMap
+        );
+
+    obj.transform.localScale = scale;
+
+    // 非常重要：不允许遮挡点击
+    Collider2D collider =
+        obj.GetComponent<Collider2D>();
+
+    if (collider != null)
+    {
+        collider.enabled = false;
+    }
+}
 
     private void CreateTowerFromBuildResult(TowerStateData towerData)
     {
@@ -310,10 +426,14 @@ public class MapManager : MonoBehaviour
         }
 
         towerObject.name = string.IsNullOrEmpty(towerData.instance_id)
-            ? "Tower_" + towerData.grid_x + "_" + towerData.grid_y
-            : towerData.instance_id;
-        towerObject.transform.position = new Vector3(tile.transform.position.x, tile.transform.position.y, -0.1f);
-        towerObject.transform.localScale = new Vector3(cellSize * 0.55f, cellSize * 0.55f, 1f);
+    ? "Tower_" + towerData.grid_x + "_" + towerData.grid_y
+    : towerData.instance_id;
+
+towerObject.transform.position = new Vector3(
+    tile.transform.position.x,
+    tile.transform.position.y,
+    -0.1f
+);
 
         var towerView = towerObject.GetComponent<TowerView>();
         if (towerView == null)
@@ -496,6 +616,27 @@ public class MapManager : MonoBehaviour
                 return new Color(0.12f, 0.14f, 0.18f, 0.45f);
         }
     }
+
+    private Vector3 GetScaleForTile(TileType type)
+{
+    switch (type)
+    {
+        case TileType.Buildable:
+            return buildableScale;
+
+        case TileType.Path:
+            return pathScale;
+
+        case TileType.Obstacle:
+            return obstacleScale;
+
+        case TileType.Castle:
+            return castleScale;
+
+        default:
+            return Vector3.one;
+    }
+}
 
     private void FitCameraToMap()
     {

@@ -13,32 +13,53 @@ public class TileButton : MonoBehaviour
 {
     public int grid_x;
     public int grid_y;
+
     public TileType tileType = TileType.Buildable;
+
     public bool is_buildable = true;
     public bool is_occupied;
+
     public MapManager mapManager;
     public SpriteRenderer spriteRenderer;
 
     private int lastClickFrame = -1;
 
-    public void Init(int gridX, int gridY, TileType type, MapManager manager)
+    // 原始颜色
+    private Color originalColor;
+
+    // 高亮颜色
+    private readonly Color hoverColor =
+        new Color(0.8f, 1f, 0.8f, 1f);
+
+    public void Init(
+        int gridX,
+        int gridY,
+        TileType type,
+        MapManager manager)
     {
         grid_x = gridX;
         grid_y = gridY;
+
         tileType = type;
+
         is_buildable = type == TileType.Buildable;
         is_occupied = false;
+
         mapManager = manager;
 
         if (spriteRenderer == null)
         {
-            spriteRenderer = GetComponent<SpriteRenderer>();
+            spriteRenderer =
+                GetComponent<SpriteRenderer>();
         }
 
-        var collider2d = GetComponent<BoxCollider2D>();
+        var collider2d =
+            GetComponent<BoxCollider2D>();
+
         if (collider2d == null)
         {
-            collider2d = gameObject.AddComponent<BoxCollider2D>();
+            collider2d =
+                gameObject.AddComponent<BoxCollider2D>();
         }
 
         collider2d.offset = Vector2.zero;
@@ -46,11 +67,14 @@ public class TileButton : MonoBehaviour
         collider2d.isTrigger = false;
     }
 
-    public void SetVisual(Sprite sprite, Color color)
+    public void SetVisual(
+        Sprite sprite,
+        Color color)
     {
         if (spriteRenderer == null)
         {
-            spriteRenderer = GetComponent<SpriteRenderer>();
+            spriteRenderer =
+                GetComponent<SpriteRenderer>();
         }
 
         if (spriteRenderer == null)
@@ -64,6 +88,9 @@ public class TileButton : MonoBehaviour
         }
 
         spriteRenderer.color = color;
+
+        // 保存原始颜色
+        originalColor = color;
     }
 
     public void SetOccupied(bool occupied)
@@ -104,7 +131,8 @@ public class TileButton : MonoBehaviour
             return;
         }
 
-        if (tileType != TileType.Buildable || !is_buildable)
+        if (tileType != TileType.Buildable
+            || !is_buildable)
         {
             NotifyInvalidClick("不可建造");
             return;
@@ -112,11 +140,17 @@ public class TileButton : MonoBehaviour
 
         if (mapManager != null)
         {
-            mapManager.OnTileClicked(grid_x, grid_y);
+            mapManager.OnTileClicked(
+                grid_x,
+                grid_y
+            );
         }
         else
         {
-            Debug.LogWarning("[TileButton] Missing MapManager for tile " + grid_x + "," + grid_y);
+            Debug.LogWarning(
+                "[TileButton] Missing MapManager for tile "
+                + grid_x + "," + grid_y
+            );
         }
     }
 
@@ -125,13 +159,58 @@ public class TileButton : MonoBehaviour
         HandleClick();
     }
 
+    // 鼠标进入
+    private void OnMouseEnter()
+    {
+        if (!CanHighlight())
+        {
+            return;
+        }
+
+        if (spriteRenderer != null)
+        {
+            spriteRenderer.color = hoverColor;
+        }
+    }
+
+    // 鼠标离开
+    private void OnMouseExit()
+    {
+        if (spriteRenderer != null)
+        {
+            spriteRenderer.color = originalColor;
+        }
+    }
+
+    // 是否允许高亮
+    private bool CanHighlight()
+    {
+        return
+            tileType == TileType.Buildable
+            && is_buildable
+            && !is_occupied;
+    }
+
     private void NotifyInvalidClick(string message)
     {
-        Debug.Log("[TileButton] " + message + ": " + grid_x + "," + grid_y);
+        Debug.Log(
+            "[TileButton] "
+            + message
+            + ": "
+            + grid_x
+            + ","
+            + grid_y
+        );
 
         if (mapManager != null)
         {
-            mapManager.ShowTileMessage(message + ": " + grid_x + "," + grid_y);
+            mapManager.ShowTileMessage(
+                message
+                + ": "
+                + grid_x
+                + ","
+                + grid_y
+            );
         }
     }
 }
