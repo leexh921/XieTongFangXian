@@ -36,10 +36,25 @@ public class MapManager : MonoBehaviour
     public Sprite castleSprite;
     public Sprite emptySprite;
 
+    [Header("Tile Scale")]
+    public Vector3 buildableScale = Vector3.one;
+    public Vector3 pathScale = Vector3.one;
+    public Vector3 obstacleScale = Vector3.one;
+    public Vector3 castleScale = Vector3.one;
+
+    [Header("Overlay")]
+    public Transform overlayRoot;
+
+    [Header("Overlay Prefabs")]
+    public GameObject obstaclePrefab;
+    public GameObject pathPrefab;
+    public GameObject castlePrefab;
+
     private readonly Dictionary<string, TileButton> tiles = new Dictionary<string, TileButton>();
     private readonly Dictionary<Vector2Int, TileButton> tileMap = new Dictionary<Vector2Int, TileButton>();
     private readonly Dictionary<string, TowerView> towerInstances = new Dictionary<string, TowerView>();
     private readonly HashSet<Vector2Int> occupiedTowerTiles = new HashSet<Vector2Int>();
+
     private MapConfigData activeMap;
     private Sprite fallbackSprite;
 
@@ -79,6 +94,7 @@ public class MapManager : MonoBehaviour
         Vector3 world = mainCamera.ScreenToWorldPoint(Input.mousePosition);
         Vector2 point = new Vector2(world.x, world.y);
         Collider2D hit = Physics2D.OverlapPoint(point);
+
         if (hit == null)
         {
             return;
@@ -99,11 +115,15 @@ public class MapManager : MonoBehaviour
     public void GenerateMap()
     {
         EnsureTileRoot();
+        EnsureOverlayRoot();
         EnsureFallbackSprite();
         ClearExistingTiles();
 
         activeMap = BattleMapConfig.GetActiveMapConfig();
-        if (gameManager != null && gameManager.GetCurrentMapConfig() != null && !BattleMapConfig.IsUsableMap(gameManager.GetCurrentMapConfig()))
+
+        if (gameManager != null
+            && gameManager.GetCurrentMapConfig() != null
+            && !BattleMapConfig.IsUsableMap(gameManager.GetCurrentMapConfig()))
         {
             Debug.LogWarning("[MapManager] Server map_config is invalid or has empty path_points. Fallback map will be used.");
             activeMap = BattleMapConfig.CreateDefaultMapConfig();
@@ -123,8 +143,38 @@ public class MapManager : MonoBehaviour
         {
             for (int x = 0; x < width; x++)
             {
-                TileType type = GetTileTypeFromConfig(x, y);
-                CreateTile(x, y, type);
+                // 永远先生成草地底图
+                CreateTile(x, y, TileType.Buildable);
+
+                TileButton tile = GetTile(x, y);
+                if (tile == null)
+                {
+                    continue;
+                }
+
+                TileType overlayType = GetTileTypeFromConfig(x, y);
+
+                if (overlayType == TileType.Obstacle)
+                {
+                    tile.tileType = TileType.Obstacle;
+                    tile.is_buildable = false;
+
+                    CreateOverlay(obstaclePrefab, x, y, obstacleScale, "Obstacle");
+                }
+                else if (overlayType == TileType.Path)
+                {
+                    tile.tileType = TileType.Path;
+                    tile.is_buildable = false;
+
+                    CreateOverlay(pathPrefab, x, y, pathScale, "Path");
+                }
+                else if (overlayType == TileType.Castle)
+                {
+                    tile.tileType = TileType.Castle;
+                    tile.is_buildable = false;
+
+                    CreateOverlay(castlePrefab, x, y, castleScale, "Castle");
+                }
             }
         }
     }
@@ -188,7 +238,10 @@ public class MapManager : MonoBehaviour
         if (tile != null)
         {
             tile.SetOccupied(true);
-            tile.SetVisual(GetSpriteForTile(tile.tileType, gridX, gridY), new Color(0.38f, 0.72f, 0.42f, 1f));
+            tile.SetVisual(
+                GetSpriteForTile(tile.tileType, gridX, gridY),
+                new Color(0.38f, 0.72f, 0.42f, 1f)
+            );
         }
     }
 
@@ -227,6 +280,7 @@ public class MapManager : MonoBehaviour
     private void CreateTile(int gridX, int gridY, TileType type)
     {
         GameObject tileObject;
+
         if (tilePrefab != null)
         {
             tileObject = Instantiate(tilePrefab, tileRoot);
@@ -239,7 +293,7 @@ public class MapManager : MonoBehaviour
 
         tileObject.name = "Tile_" + gridX + "_" + gridY + "_" + type;
         tileObject.transform.position = BattleMapConfig.GridToWorld(gridX, gridY, activeMap);
-        tileObject.transform.localScale = new Vector3(cellSize * 0.95f, cellSize * 0.95f, 1f);
+        tileObject.transform.localScale = GetScaleForTile(type);
 
         var tile = tileObject.GetComponent<TileButton>();
         if (tile == null)
@@ -261,10 +315,43 @@ public class MapManager : MonoBehaviour
 
         tile.spriteRenderer = renderer;
         tile.Init(gridX, gridY, type, this);
-        tile.SetVisual(GetSpriteForTile(type, gridX, gridY), GetColorForTile(type));
+
+        // 底图永远显示草地
+        tile.SetVisual(
+            GetBuildableSprite(gridX, gridY),
+            GetColorForTile(TileType.Buildable)
+        );
 
         tiles[MakeKey(gridX, gridY)] = tile;
         tileMap[new Vector2Int(gridX, gridY)] = tile;
+    }
+
+    private void CreateOverlay(GameObject prefab, int gridX, int gridY, Vector3 scale, string objectName)
+    {
+        if (prefab == null)
+        {
+            return;
+        }
+
+        EnsureOverlayRoot();
+
+        if (overlayRoot == null)
+        {
+            return;
+        }
+
+        GameObject obj = Instantiate(prefab, overlayRoot);
+
+        obj.name = objectName + "_" + gridX + "_" + gridY;
+        obj.transform.position = BattleMapConfig.GridToWorld(gridX, gridY, activeMap);
+        obj.transform.localScale = scale;
+
+        // 非常重要：覆盖物不允许遮挡点击
+        Collider2D[] colliders = obj.GetComponentsInChildren<Collider2D>();
+        foreach (Collider2D collider in colliders)
+        {
+            collider.enabled = false;
+        }
     }
 
     private void CreateTowerFromBuildResult(TowerStateData towerData)
@@ -275,7 +362,8 @@ public class MapManager : MonoBehaviour
             return;
         }
 
-        if (!string.IsNullOrEmpty(towerData.instance_id) && towerInstances.ContainsKey(towerData.instance_id))
+        if (!string.IsNullOrEmpty(towerData.instance_id)
+            && towerInstances.ContainsKey(towerData.instance_id))
         {
             ShowTileMessage("建塔成功: " + towerData.grid_x + "," + towerData.grid_y);
             return;
@@ -283,6 +371,7 @@ public class MapManager : MonoBehaviour
 
         var tilePosition = new Vector2Int(towerData.grid_x, towerData.grid_y);
         TileButton tile = GetTile(towerData.grid_x, towerData.grid_y);
+
         if (tile == null)
         {
             ShowTileMessage("建塔失败：地块不存在 " + towerData.grid_x + "," + towerData.grid_y);
@@ -299,6 +388,7 @@ public class MapManager : MonoBehaviour
         EnsureTowerRoot();
 
         GameObject towerObject;
+
         if (towerPrefab != null)
         {
             towerObject = Instantiate(towerPrefab, towerRoot);
@@ -312,8 +402,18 @@ public class MapManager : MonoBehaviour
         towerObject.name = string.IsNullOrEmpty(towerData.instance_id)
             ? "Tower_" + towerData.grid_x + "_" + towerData.grid_y
             : towerData.instance_id;
-        towerObject.transform.position = new Vector3(tile.transform.position.x, tile.transform.position.y, -0.1f);
-        towerObject.transform.localScale = new Vector3(cellSize * 0.55f, cellSize * 0.55f, 1f);
+
+        towerObject.transform.position = new Vector3(
+            tile.transform.position.x,
+            tile.transform.position.y,
+            -0.1f
+        );
+
+        towerObject.transform.localScale = new Vector3(
+            cellSize * 0.55f,
+            cellSize * 0.55f,
+            1f
+        );
 
         var towerView = towerObject.GetComponent<TowerView>();
         if (towerView == null)
@@ -321,10 +421,18 @@ public class MapManager : MonoBehaviour
             towerView = towerObject.AddComponent<TowerView>();
         }
 
-        towerView.Init(towerData.instance_id, towerData.tower_id, towerData.owner_player_id, towerData.grid_x, towerData.grid_y);
+        towerView.Init(
+            towerData.instance_id,
+            towerData.tower_id,
+            towerData.owner_player_id,
+            towerData.grid_x,
+            towerData.grid_y
+        );
+
         string instanceKey = string.IsNullOrEmpty(towerData.instance_id)
             ? "tower_" + towerData.grid_x + "_" + towerData.grid_y
             : towerData.instance_id;
+
         towerInstances[instanceKey] = towerView;
         occupiedTowerTiles.Add(tilePosition);
         MarkTileOccupied(towerData.grid_x, towerData.grid_y);
@@ -390,6 +498,23 @@ public class MapManager : MonoBehaviour
         towerRoot = root.transform;
     }
 
+    private void EnsureOverlayRoot()
+    {
+        if (overlayRoot != null)
+        {
+            return;
+        }
+
+        var root = GameObject.Find("OverlayRoot");
+        if (root == null)
+        {
+            root = new GameObject("OverlayRoot");
+            root.transform.SetParent(transform, false);
+        }
+
+        overlayRoot = root.transform;
+    }
+
     private void EnsureFallbackSprite()
     {
         if (fallbackSprite != null)
@@ -401,7 +526,14 @@ public class MapManager : MonoBehaviour
         texture.name = "RuntimeTileFallbackTexture";
         texture.SetPixel(0, 0, Color.white);
         texture.Apply();
-        fallbackSprite = Sprite.Create(texture, new Rect(0f, 0f, 1f, 1f), new Vector2(0.5f, 0.5f), 1f);
+
+        fallbackSprite = Sprite.Create(
+            texture,
+            new Rect(0f, 0f, 1f, 1f),
+            new Vector2(0.5f, 0.5f),
+            1f
+        );
+
         fallbackSprite.name = "RuntimeTileFallbackSprite";
     }
 
@@ -409,14 +541,21 @@ public class MapManager : MonoBehaviour
     {
         tiles.Clear();
         tileMap.Clear();
-        if (tileRoot == null)
+
+        if (tileRoot != null)
         {
-            return;
+            for (int i = tileRoot.childCount - 1; i >= 0; i--)
+            {
+                Destroy(tileRoot.GetChild(i).gameObject);
+            }
         }
 
-        for (int i = tileRoot.childCount - 1; i >= 0; i--)
+        if (overlayRoot != null)
         {
-            Destroy(tileRoot.GetChild(i).gameObject);
+            for (int i = overlayRoot.childCount - 1; i >= 0; i--)
+            {
+                Destroy(overlayRoot.GetChild(i).gameObject);
+            }
         }
     }
 
@@ -443,6 +582,7 @@ public class MapManager : MonoBehaviour
     private Sprite GetSpriteForTile(TileType type, int x, int y)
     {
         Sprite selected = null;
+
         if (type == TileType.Buildable)
         {
             selected = GetBuildableSprite(x, y);
@@ -469,14 +609,46 @@ public class MapManager : MonoBehaviour
 
     private Sprite GetBuildableSprite(int x, int y)
     {
-        if (x == 0 && y == 0) return buildableBottomLeftSprite != null ? buildableBottomLeftSprite : buildableCenterSprite;
-        if (x == width - 1 && y == 0) return buildableBottomRightSprite != null ? buildableBottomRightSprite : buildableCenterSprite;
-        if (x == 0 && y == height - 1) return buildableTopLeftSprite != null ? buildableTopLeftSprite : buildableCenterSprite;
-        if (x == width - 1 && y == height - 1) return buildableTopRightSprite != null ? buildableTopRightSprite : buildableCenterSprite;
-        if (y == height - 1) return buildableTopSprite != null ? buildableTopSprite : buildableCenterSprite;
-        if (y == 0) return buildableBottomSprite != null ? buildableBottomSprite : buildableCenterSprite;
-        if (x == 0) return buildableLeftSprite != null ? buildableLeftSprite : buildableCenterSprite;
-        if (x == width - 1) return buildableRightSprite != null ? buildableRightSprite : buildableCenterSprite;
+        if (x == 0 && y == 0)
+        {
+            return buildableBottomLeftSprite != null ? buildableBottomLeftSprite : buildableCenterSprite;
+        }
+
+        if (x == width - 1 && y == 0)
+        {
+            return buildableBottomRightSprite != null ? buildableBottomRightSprite : buildableCenterSprite;
+        }
+
+        if (x == 0 && y == height - 1)
+        {
+            return buildableTopLeftSprite != null ? buildableTopLeftSprite : buildableCenterSprite;
+        }
+
+        if (x == width - 1 && y == height - 1)
+        {
+            return buildableTopRightSprite != null ? buildableTopRightSprite : buildableCenterSprite;
+        }
+
+        if (y == height - 1)
+        {
+            return buildableTopSprite != null ? buildableTopSprite : buildableCenterSprite;
+        }
+
+        if (y == 0)
+        {
+            return buildableBottomSprite != null ? buildableBottomSprite : buildableCenterSprite;
+        }
+
+        if (x == 0)
+        {
+            return buildableLeftSprite != null ? buildableLeftSprite : buildableCenterSprite;
+        }
+
+        if (x == width - 1)
+        {
+            return buildableRightSprite != null ? buildableRightSprite : buildableCenterSprite;
+        }
+
         return buildableCenterSprite;
     }
 
@@ -486,14 +658,39 @@ public class MapManager : MonoBehaviour
         {
             case TileType.Buildable:
                 return new Color(0.62f, 0.9f, 0.62f, 1f);
+
             case TileType.Path:
                 return new Color(0.78f, 0.58f, 0.28f, 1f);
+
             case TileType.Obstacle:
                 return new Color(0.45f, 0.47f, 0.5f, 1f);
+
             case TileType.Castle:
                 return new Color(0.25f, 0.26f, 0.58f, 1f);
+
             default:
                 return new Color(0.12f, 0.14f, 0.18f, 0.45f);
+        }
+    }
+
+    private Vector3 GetScaleForTile(TileType type)
+    {
+        switch (type)
+        {
+            case TileType.Buildable:
+                return buildableScale;
+
+            case TileType.Path:
+                return pathScale;
+
+            case TileType.Obstacle:
+                return obstacleScale;
+
+            case TileType.Castle:
+                return castleScale;
+
+            default:
+                return Vector3.one;
         }
     }
 
@@ -508,12 +705,17 @@ public class MapManager : MonoBehaviour
         mainCamera.orthographic = true;
         mainCamera.transform.position = new Vector3(0f, 0f, -10f);
 
-        MapConfigData map = BattleMapConfig.IsUsableMap(activeMap) ? activeMap : BattleMapConfig.GetActiveMapConfig();
+        MapConfigData map = BattleMapConfig.IsUsableMap(activeMap)
+            ? activeMap
+            : BattleMapConfig.GetActiveMapConfig();
+
         float mapWorldWidth = map.width * BattleMapConfig.CellSize;
         float mapWorldHeight = map.height * BattleMapConfig.CellSize;
         float aspect = mainCamera.aspect > 0f ? mainCamera.aspect : 16f / 9f;
+
         float sizeByHeight = mapWorldHeight * 0.5f + 0.9f;
         float sizeByWidth = mapWorldWidth * 0.5f / aspect + 0.9f;
+
         mainCamera.orthographicSize = Mathf.Max(sizeByHeight, sizeByWidth);
     }
 
@@ -592,6 +794,7 @@ public class MapManager : MonoBehaviour
     private TileButton GetTile(int gridX, int gridY)
     {
         TileButton tile;
+
         if (tileMap.TryGetValue(new Vector2Int(gridX, gridY), out tile))
         {
             return tile;
@@ -607,14 +810,19 @@ public class MapManager : MonoBehaviour
         {
             case "not_enough_gold":
                 return "金币不足";
+
             case "tile_occupied":
                 return "该地块已有塔";
+
             case "invalid_tower":
                 return "无效的防御塔";
+
             case "invalid_player":
                 return "无效玩家";
+
             case "game_over":
                 return "游戏已结束";
+
             default:
                 return string.IsNullOrEmpty(reason) ? "未知原因" : reason;
         }
@@ -636,10 +844,13 @@ public class MapManager : MonoBehaviour
         {
             case TileType.Path:
                 return "路径不可建造";
+
             case TileType.Obstacle:
                 return "障碍物不可建造";
+
             case TileType.Castle:
                 return "堡垒位置不可建造";
+
             default:
                 return "不可建造";
         }
