@@ -55,6 +55,14 @@
             </div>
           </template>
         </el-menu-item>
+        <el-menu-item index="/players">
+          <template #title>
+            <div class="menu-item-inner">
+              <el-icon class="menu-icon"><User /></el-icon>
+              <span>玩家管理</span>
+            </div>
+          </template>
+        </el-menu-item>
         <el-menu-item index="/leaderboard">
           <template #title>
             <div class="menu-item-inner">

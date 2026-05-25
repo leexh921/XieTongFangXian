@@ -12,6 +12,7 @@ const routes = [
       { path: 'monsters', name: 'MonsterManage', component: () => import('../views/MonsterManage.vue'), meta: { title: '怪物管理' } },
       { path: 'levels', name: 'LevelManage', component: () => import('../views/LevelManage.vue'), meta: { title: '关卡管理' } },
       { path: 'wave-events', name: 'WaveEventManage', component: () => import('../views/WaveEventManage.vue'), meta: { title: '出怪时间轴' } },
+      { path: 'players', name: 'PlayerManage', component: () => import('../views/PlayerManage.vue'), meta: { title: '玩家管理' } },
       { path: 'leaderboard', name: 'Leaderboard', component: () => import('../views/Leaderboard.vue'), meta: { title: '排行榜' } },
     ],
   },

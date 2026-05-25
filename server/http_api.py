@@ -258,6 +258,51 @@ def delete_wave(id: int):
 
 
 # ============================================================
+# Player CRUD
+# ============================================================
+class PlayerBody(BaseModel):
+    username: str
+
+@router.get("/players")
+def list_players():
+    c = _conn().cursor()
+    c.execute("SELECT * FROM player ORDER BY player_id")
+    rows = c.fetchall()
+    c.close()
+    return rows
+
+@router.post("/players")
+def create_player(body: PlayerBody):
+    conn = _conn()
+    c = conn.cursor()
+    c.execute("INSERT INTO player (username) VALUES (%s)", (body.username,))
+    conn.commit()
+    new_id = c.lastrowid
+    c.close()
+    conn.close()
+    return {"player_id": new_id}
+
+@router.put("/players/{id}")
+def update_player(id: int, body: PlayerBody):
+    conn = _conn()
+    c = conn.cursor()
+    c.execute("UPDATE player SET username=%s WHERE player_id=%s", (body.username, id))
+    conn.commit()
+    c.close()
+    conn.close()
+    return {"ok": True}
+
+@router.delete("/players/{id}")
+def delete_player(id: int):
+    conn = _conn()
+    c = conn.cursor()
+    c.execute("DELETE FROM player WHERE player_id=%s", (id,))
+    conn.commit()
+    c.close()
+    conn.close()
+    return {"ok": True}
+
+# ============================================================
 # Leaderboard
 # ============================================================
 @router.get("/leaderboard")
