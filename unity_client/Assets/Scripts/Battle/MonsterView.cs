@@ -10,6 +10,7 @@ public class MonsterView : MonoBehaviour
     public SpriteRenderer spriteRenderer;
     public Transform hpBarRoot;
     public Transform hpFill;
+    public VisualConfigManager visualConfigManager;
 
     private static Sprite fallbackSprite;
     private static Sprite hpBarSprite;
@@ -25,6 +26,7 @@ public class MonsterView : MonoBehaviour
         targetPosition = new Vector3(worldPosition.x, worldPosition.y, -0.2f);
         transform.position = targetPosition;
         EnsureRenderer();
+        ApplyMonsterSprite();
         EnsureHpBar();
         SetHp(currentHp, currentMaxHp);
         MarkUpdatedThisFrame();
@@ -43,7 +45,13 @@ public class MonsterView : MonoBehaviour
         }
 
         instance_id = data.instance_id;
-        monster_id = data.monster_id;
+        if (monster_id != data.monster_id)
+        {
+            monster_id = data.monster_id;
+            EnsureRenderer();
+            ApplyMonsterSprite();
+        }
+
         targetPosition = new Vector3(worldPosition.x, worldPosition.y, -0.2f);
         SetHp(data.hp, data.max_hp);
         MarkUpdatedThisFrame();
@@ -102,8 +110,27 @@ public class MonsterView : MonoBehaviour
             spriteRenderer.sprite = GetFallbackSprite();
         }
 
-        spriteRenderer.color = new Color(0.95f, 0.25f, 0.22f, 1f);
         spriteRenderer.sortingOrder = 20;
+    }
+
+    private void ApplyMonsterSprite()
+    {
+        if (visualConfigManager == null)
+        {
+            visualConfigManager = VisualConfigManager.Instance;
+        }
+
+        Sprite sprite = visualConfigManager != null ? visualConfigManager.GetMonsterSprite(monster_id) : null;
+        if (sprite != null)
+        {
+            spriteRenderer.sprite = sprite;
+            spriteRenderer.color = Color.white;
+        }
+        else
+        {
+            spriteRenderer.sprite = GetFallbackSprite();
+            spriteRenderer.color = VisualConfigManager.GetMonsterFallbackColor(monster_id);
+        }
     }
 
     private void EnsureHpBar()

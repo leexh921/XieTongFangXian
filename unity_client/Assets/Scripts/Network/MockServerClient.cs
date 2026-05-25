@@ -19,18 +19,28 @@ public class MockServerClient : MonoBehaviour
     private int nextPlayerId = 1;
     private const int MockGameId = 10001;
     private const int BasicTowerId = 1;
+    private const int RapidTowerId = 2;
     private const int InitialGold = 250;
     private const int InitialBaseHp = 10;
     private const int BasicTowerCost = 100;
     private const int BasicTowerAttack = 12;
     private const float BasicTowerRange = 1.8f;
     private const float BasicTowerCooldown = 0.8f;
+    private const int RapidTowerCost = 130;
+    private const int RapidTowerAttack = 6;
+    private const float RapidTowerRange = 1.5f;
+    private const float RapidTowerCooldown = 0.35f;
     private const float GoldPerSecond = 0.5f;
     private const int BaseMonsterHp = 36;
     private const float BaseMonsterSpeed = 1.3f;
     private const int MonsterScoreValue = 20;
     private const int MonsterRewardGold = 15;
     private const int MonsterDamageToBase = 1;
+    private const int HeavyMonsterHp = 120;
+    private const float HeavyMonsterSpeed = 0.75f;
+    private const int HeavyMonsterScoreValue = 50;
+    private const int HeavyMonsterRewardGold = 30;
+    private const int HeavyMonsterDamageToBase = 2;
     private const int MaxMonsters = 12;
     private const int DemoVictoryTimeSeconds = 60;
     private float currentGold = InitialGold;
@@ -49,6 +59,7 @@ public class MockServerClient : MonoBehaviour
     private MapConfigData currentMapConfig;
     private Coroutine gameLoopCoroutine;
     private readonly HashSet<string> occupiedTiles = new HashSet<string>();
+    private readonly List<TowerConfigData> currentTowerConfigs = new List<TowerConfigData>();
     private readonly List<MockTower> mockTowers = new List<MockTower>();
     private readonly List<MockMonster> mockMonsters = new List<MockMonster>();
 
@@ -159,19 +170,7 @@ public class MockServerClient : MonoBehaviour
                     score = 0,
                     kill_count = 0
                 },
-                tower_config = new List<TowerConfigData>
-                {
-                    new TowerConfigData
-                    {
-                        tower_id = BasicTowerId,
-                        name = "箭塔",
-                        attack = BasicTowerAttack,
-                        range = BasicTowerRange,
-                        cooldown = BasicTowerCooldown,
-                        cost = BasicTowerCost,
-                        refund_rate = 0.5f
-                    }
-                },
+                tower_config = CreateMockTowerConfigs(),
                 map = currentMapConfig,
                 base_hp = InitialBaseHp
             }
@@ -192,6 +191,7 @@ public class MockServerClient : MonoBehaviour
         int gridY = request != null && request.data != null ? request.data.grid_y : 0;
         string reason = string.Empty;
         TowerStateData tower = null;
+        TowerConfigData towerConfig = FindMockTowerConfig(towerId);
 
         if (gameOverSent)
         {
@@ -201,7 +201,7 @@ public class MockServerClient : MonoBehaviour
         {
             reason = "invalid_player";
         }
-        else if (towerId != BasicTowerId)
+        else if (towerConfig == null)
         {
             reason = "invalid_tower";
         }
@@ -209,13 +209,13 @@ public class MockServerClient : MonoBehaviour
         {
             reason = "tile_occupied";
         }
-        else if (currentGold < BasicTowerCost)
+        else if (currentGold < towerConfig.cost)
         {
             reason = "not_enough_gold";
         }
         else
         {
-            currentGold -= BasicTowerCost;
+            currentGold -= towerConfig.cost;
             occupiedTiles.Add(MakeTileKey(gridX, gridY));
             tower = new TowerStateData
             {
@@ -228,9 +228,9 @@ public class MockServerClient : MonoBehaviour
             mockTowers.Add(new MockTower
             {
                 state = tower,
-                attack = BasicTowerAttack,
-                range = BasicTowerRange,
-                cooldown = BasicTowerCooldown,
+                attack = towerConfig.attack,
+                range = towerConfig.range,
+                cooldown = towerConfig.cooldown,
                 nextAttackTime = mockGameTime
             });
             towerSerial++;
@@ -332,6 +332,8 @@ public class MockServerClient : MonoBehaviour
         towerSerial = 1;
         monsterSerial = 1;
         occupiedTiles.Clear();
+        currentTowerConfigs.Clear();
+        currentTowerConfigs.AddRange(CreateMockTowerConfigs());
         mockTowers.Clear();
         mockMonsters.Clear();
         currentMapConfig = BattleMapConfig.CreateDefaultMapConfig();
@@ -339,15 +341,18 @@ public class MockServerClient : MonoBehaviour
 
     private void SpawnMonster()
     {
-        int maxHp = GetMonsterMaxHp();
+        MockMonsterTemplate template = GetNextMonsterTemplate();
         Vector2 startPoint = BattleMapConfig.GetPathPoint(currentMapConfig, 0);
         var monster = new MockMonster
         {
             instanceId = "monster_" + MockGameId + "_" + monsterSerial,
-            monsterId = 1,
-            hp = maxHp,
-            maxHp = maxHp,
-            speed = GetMonsterSpeed(),
+            monsterId = template.monsterId,
+            hp = template.maxHp,
+            maxHp = template.maxHp,
+            speed = template.speed,
+            scoreValue = template.scoreValue,
+            rewardGold = template.rewardGold,
+            damageToBase = template.damageToBase,
             pathIndex = 0,
             position = startPoint
         };
@@ -365,7 +370,7 @@ public class MockServerClient : MonoBehaviour
             if (MoveMonster(monster, deltaTime))
             {
                 mockMonsters.RemoveAt(i);
-                currentBaseHp = Mathf.Max(0, currentBaseHp - MonsterDamageToBase);
+                currentBaseHp = Mathf.Max(0, currentBaseHp - monster.damageToBase);
                 Debug.Log("[MockServer] Monster reached base. base_hp=" + currentBaseHp);
             }
         }
@@ -461,14 +466,40 @@ public class MockServerClient : MonoBehaviour
             }
 
             mockMonsters.RemoveAt(i);
-            currentScore += MonsterScoreValue;
+            currentScore += monster.scoreValue;
             currentKillCount += 1;
-            currentGold += MonsterRewardGold;
+            currentGold += monster.rewardGold;
             Debug.Log("[MockServer] Monster killed: " + monster.instanceId);
         }
     }
 
-    private int GetMonsterMaxHp()
+    private MockMonsterTemplate GetNextMonsterTemplate()
+    {
+        if (mockGameTime >= 20f && monsterSerial % 3 == 0)
+        {
+            return new MockMonsterTemplate
+            {
+                monsterId = 2,
+                maxHp = HeavyMonsterHp,
+                speed = HeavyMonsterSpeed,
+                scoreValue = HeavyMonsterScoreValue,
+                rewardGold = HeavyMonsterRewardGold,
+                damageToBase = HeavyMonsterDamageToBase
+            };
+        }
+
+        return new MockMonsterTemplate
+        {
+            monsterId = 1,
+            maxHp = GetNormalMonsterMaxHp(),
+            speed = GetNormalMonsterSpeed(),
+            scoreValue = MonsterScoreValue,
+            rewardGold = MonsterRewardGold,
+            damageToBase = MonsterDamageToBase
+        };
+    }
+
+    private int GetNormalMonsterMaxHp()
     {
         if (mockGameTime >= 30f)
         {
@@ -483,9 +514,50 @@ public class MockServerClient : MonoBehaviour
         return BaseMonsterHp;
     }
 
-    private float GetMonsterSpeed()
+    private float GetNormalMonsterSpeed()
     {
         return mockGameTime >= 30f ? 1.5f : BaseMonsterSpeed;
+    }
+
+    private List<TowerConfigData> CreateMockTowerConfigs()
+    {
+        return new List<TowerConfigData>
+        {
+            new TowerConfigData
+            {
+                tower_id = BasicTowerId,
+                name = "基础塔",
+                attack = BasicTowerAttack,
+                range = BasicTowerRange,
+                cooldown = BasicTowerCooldown,
+                cost = BasicTowerCost,
+                refund_rate = 0.5f
+            },
+            new TowerConfigData
+            {
+                tower_id = RapidTowerId,
+                name = "速射塔",
+                attack = RapidTowerAttack,
+                range = RapidTowerRange,
+                cooldown = RapidTowerCooldown,
+                cost = RapidTowerCost,
+                refund_rate = 0.5f
+            }
+        };
+    }
+
+    private TowerConfigData FindMockTowerConfig(int towerId)
+    {
+        for (int i = 0; i < currentTowerConfigs.Count; i++)
+        {
+            TowerConfigData config = currentTowerConfigs[i];
+            if (config != null && config.tower_id == towerId)
+            {
+                return config;
+            }
+        }
+
+        return null;
     }
 
     private void EmitStateUpdate()
@@ -618,8 +690,21 @@ public class MockServerClient : MonoBehaviour
         public int hp;
         public int maxHp;
         public float speed;
+        public int scoreValue;
+        public int rewardGold;
+        public int damageToBase;
         public int pathIndex;
         public Vector2 position;
+    }
+
+    private class MockMonsterTemplate
+    {
+        public int monsterId;
+        public int maxHp;
+        public float speed;
+        public int scoreValue;
+        public int rewardGold;
+        public int damageToBase;
     }
 
     private class MockTower

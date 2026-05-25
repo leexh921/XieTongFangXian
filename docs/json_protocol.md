@@ -505,3 +505,23 @@ Unity                          Server
 | `game_over.is_win` | game_over | 胜负 |
 | `game_over.player.score` | game_over | 最终得分 |
 | `error.code` | error | 错误码 |
+
+---
+
+## 6. 塔和怪物扩展规则
+
+新增防御塔：
+
+1. Web 后台新增启用状态的 `tower`。
+2. Server 在 `game_start.data.tower_config` 下发完整塔列表。
+3. Unity `TowerSelectionUI` 根据 `tower_config` 自动生成塔按钮。
+4. Unity `build_request.data.tower_id` 使用玩家当前选择的塔 ID。
+5. 美术替换时只需要在 `VisualConfigManager.towerSprites` 中配置 `tower_id` 对应 Sprite。
+
+新增怪物：
+
+1. Web 后台新增启用状态的 `monster`。
+2. `wave_event` 使用新的 `monster_id`。
+3. Server 在 `state_update.data.monsters[].monster_id` 下发怪物类型。
+4. Unity `MonsterView` 通过 `VisualConfigManager.monsterSprites` 匹配 Sprite。
+5. 未配置 Sprite 时 Unity 使用默认 Sprite 或颜色兜底，不影响核心逻辑。

@@ -17,7 +17,7 @@ public class MapManager : MonoBehaviour
     public NetworkManager networkManager;
     public GameManager gameManager;
     public BattleUI battleUI;
-    public int selectedTowerId = 1;
+    public TowerSelectionUI towerSelectionUI;
 
     [Header("Buildable Sprites")]
     public Sprite buildableCenterSprite;
@@ -54,7 +54,7 @@ public class MapManager : MonoBehaviour
         if (battleUI != null)
         {
             battleUI.Refresh();
-            battleUI.ShowMessage("点击浅绿色地块请求建塔");
+            battleUI.ShowMessage("点击浅绿色地块后选择要建造的防御塔");
         }
     }
 
@@ -139,22 +139,39 @@ public class MapManager : MonoBehaviour
             return;
         }
 
-        string message = "建塔请求已发送: " + gridX + "," + gridY;
-        Debug.Log("[MapManager] " + message + ", tower_id=" + selectedTowerId);
-
-        if (battleUI != null)
+        TileButton tile = GetTile(gridX, gridY);
+        if (tile == null)
         {
-            battleUI.ShowMessage(message);
+            ShowTileMessage("地块不存在: " + gridX + "," + gridY);
+            return;
         }
 
-        if (networkManager != null)
+        if (tile.is_occupied)
         {
-            networkManager.SendBuildRequest(selectedTowerId, gridX, gridY);
+            ShowTileMessage("该地块已有塔");
+            return;
         }
-        else
+
+        if (tile.tileType != TileType.Buildable || !tile.is_buildable)
         {
-            Debug.LogWarning("[MapManager] Missing NetworkManager. build_request was not sent.");
+            ShowTileMessage(GetInvalidBuildMessage(tile));
+            return;
         }
+
+        if (towerSelectionUI == null)
+        {
+            towerSelectionUI = TowerSelectionUI.FindOrCreate();
+        }
+
+        if (towerSelectionUI == null)
+        {
+            ShowTileMessage("建塔弹窗未初始化");
+            return;
+        }
+
+        Debug.Log("[MapManager] Open build popup at " + gridX + "," + gridY);
+        towerSelectionUI.ShowForTile(gridX, gridY, tile.transform.position);
+        ShowTileMessage("请选择要建造的防御塔");
     }
 
     public void ShowTileMessage(string message)
@@ -525,6 +542,16 @@ public class MapManager : MonoBehaviour
             battleUI = FindObjectOfType<BattleUI>();
         }
 
+        if (towerSelectionUI == null)
+        {
+            towerSelectionUI = FindObjectOfType<TowerSelectionUI>();
+        }
+
+        if (towerSelectionUI == null)
+        {
+            towerSelectionUI = TowerSelectionUI.FindOrCreate();
+        }
+
         if (towerRoot == null)
         {
             var root = GameObject.Find("TowerRoot");
@@ -586,8 +613,35 @@ public class MapManager : MonoBehaviour
                 return "无效的防御塔";
             case "invalid_player":
                 return "无效玩家";
+            case "game_over":
+                return "游戏已结束";
             default:
                 return string.IsNullOrEmpty(reason) ? "未知原因" : reason;
+        }
+    }
+
+    private string GetInvalidBuildMessage(TileButton tile)
+    {
+        if (tile == null)
+        {
+            return "地块不存在";
+        }
+
+        if (tile.is_occupied)
+        {
+            return "该地块已有塔";
+        }
+
+        switch (tile.tileType)
+        {
+            case TileType.Path:
+                return "路径不可建造";
+            case TileType.Obstacle:
+                return "障碍物不可建造";
+            case TileType.Castle:
+                return "堡垒位置不可建造";
+            default:
+                return "不可建造";
         }
     }
 }

@@ -157,6 +157,32 @@ public class GameManager : MonoBehaviour
         return current_map_config;
     }
 
+    public TowerConfigData GetTowerConfigById(int towerId)
+    {
+        if (tower_config == null)
+        {
+            return null;
+        }
+
+        for (int i = 0; i < tower_config.Count; i++)
+        {
+            TowerConfigData config = tower_config[i];
+            if (config != null && config.tower_id == towerId)
+            {
+                return config;
+            }
+        }
+
+        return null;
+    }
+
+    public List<TowerConfigData> GetTowerConfigs()
+    {
+        return tower_config != null
+            ? new List<TowerConfigData>(tower_config)
+            : new List<TowerConfigData>();
+    }
+
     public bool HasServerMapConfig()
     {
         return current_map_config != null

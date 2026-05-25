@@ -9,6 +9,7 @@ public class TowerView : MonoBehaviour
     public int grid_y;
     public SpriteRenderer spriteRenderer;
     public LineRenderer rangeLineRenderer;
+    public VisualConfigManager visualConfigManager;
 
     private static Sprite fallbackSprite;
     private static Material rangeMaterial;
@@ -36,6 +37,7 @@ public class TowerView : MonoBehaviour
     public void SetDefaultVisual()
     {
         EnsureRenderer();
+        ApplyTowerSprite();
         spriteRenderer.color = defaultColor;
         spriteRenderer.sortingOrder = 10;
     }
@@ -67,21 +69,13 @@ public class TowerView : MonoBehaviour
 
     private float GetTowerRange()
     {
-        if (GameManager.Instance == null || GameManager.Instance.tower_config == null)
+        if (GameManager.Instance == null)
         {
             return 0f;
         }
 
-        for (int i = 0; i < GameManager.Instance.tower_config.Count; i++)
-        {
-            TowerConfigData config = GameManager.Instance.tower_config[i];
-            if (config != null && config.tower_id == tower_id)
-            {
-                return config.range;
-            }
-        }
-
-        return 0f;
+        TowerConfigData config = GameManager.Instance.GetTowerConfigById(tower_id);
+        return config != null ? config.range : 0f;
     }
 
     private void EnsureRangeLineRenderer()
@@ -124,6 +118,26 @@ public class TowerView : MonoBehaviour
         }
 
         spriteRenderer.sortingOrder = 10;
+    }
+
+    private void ApplyTowerSprite()
+    {
+        if (visualConfigManager == null)
+        {
+            visualConfigManager = VisualConfigManager.Instance;
+        }
+
+        Sprite sprite = visualConfigManager != null ? visualConfigManager.GetTowerSprite(tower_id) : null;
+        if (sprite != null)
+        {
+            spriteRenderer.sprite = sprite;
+            defaultColor = Color.white;
+        }
+        else
+        {
+            spriteRenderer.sprite = GetFallbackSprite();
+            defaultColor = VisualConfigManager.GetTowerFallbackColor(tower_id);
+        }
     }
 
     private static Sprite GetFallbackSprite()

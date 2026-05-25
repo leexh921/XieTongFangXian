@@ -18,7 +18,7 @@ public class BattleUI : MonoBehaviour
         ResolveReferences();
         SubscribeNetworkEvents();
         Refresh();
-        ShowMessage("选择地块建造箭塔");
+        ShowMessage("点击浅绿色地块后选择要建造的防御塔");
     }
 
     private void OnDestroy()
