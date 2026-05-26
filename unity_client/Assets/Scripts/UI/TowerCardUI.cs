@@ -10,63 +10,104 @@ public class TowerCardUI : MonoBehaviour
     public TextMeshProUGUI costText;
     public TextMeshProUGUI statText;
     public GameObject selectedMark;
+
     public int towerId;
 
     private TowerSelectionUI owner;
     private TowerConfigData config;
+
     private Image backgroundImage;
 
-    public void Init(TowerConfigData towerConfig, TowerSelectionUI ownerUi, int currentGold)
+    public void Init(
+        TowerConfigData towerConfig,
+        TowerSelectionUI ownerUi,
+        int currentGold
+    )
     {
         EnsureReferences();
 
         owner = ownerUi;
         config = towerConfig;
-        towerId = config != null ? config.tower_id : 0;
-        bool canAfford = config != null && currentGold >= config.cost;
+
+        towerId =
+            config != null
+                ? config.tower_id
+                : 0;
+
+        bool canAfford =
+            config != null
+            && currentGold >= config.cost;
 
         if (nameText != null)
         {
-            nameText.text = config != null ? config.name : "未知塔";
+            nameText.text =
+                config != null
+                    ? config.name
+                    : "未知塔";
         }
 
         if (costText != null)
         {
-            costText.text = config != null
-                ? "造价：" + config.cost + (canAfford ? "" : "  金币不足")
-                : "造价：-";
-            costText.color = canAfford ? Color.white : new Color(1f, 0.55f, 0.45f, 1f);
+            costText.text =
+                config != null
+                    ? "造价：" + config.cost
+                        + (
+                            canAfford
+                                ? ""
+                                : "  金币不足"
+                        )
+                    : "造价：-";
+
+            // 金币不足时自动红色
+            if (!canAfford)
+            {
+                costText.color = Color.red;
+            }
         }
 
         if (statText != null)
         {
-            statText.text = config != null
-                ? "攻击：" + config.attack
-                    + "\n范围：" + config.range.ToString("0.0")
-                    + "\n冷却：" + config.cooldown.ToString("0.00") + "秒"
-                : "攻击：-\n范围：-\n冷却：-";
+            statText.text =
+                config != null
+                    ? "攻击：" + config.attack
+                        + "\n范围："
+                        + config.range.ToString("0.0")
+                        + "\n冷却："
+                        + config.cooldown.ToString("0.00")
+                        + "秒"
+                    : "攻击：-\n范围：-\n冷却：-";
         }
 
         if (iconImage != null)
         {
-            Sprite sprite = VisualConfigManager.GetTowerSpriteForId(towerId);
+            Sprite sprite =
+                VisualConfigManager
+                    .GetTowerSpriteForId(
+                        towerId
+                    );
+
             iconImage.sprite = sprite;
-            iconImage.color = sprite != null ? Color.white : VisualConfigManager.GetTowerFallbackColor(towerId);
+
+            // 不再自动修改颜色
+            // Inspector 控制
         }
 
         if (button != null)
         {
-            button.onClick.RemoveListener(HandleClick);
-            button.onClick.AddListener(HandleClick);
-            button.interactable = canAfford;
+            button.onClick.RemoveListener(
+                HandleClick
+            );
+
+            button.onClick.AddListener(
+                HandleClick
+            );
+
+            button.interactable =
+                canAfford;
         }
 
-        if (backgroundImage != null)
-        {
-            backgroundImage.color = canAfford
-                ? new Color(0.12f, 0.15f, 0.18f, 0.94f)
-                : new Color(0.12f, 0.12f, 0.13f, 0.72f);
-        }
+        // 不再自动修改背景颜色
+        // backgroundImage.color 删除
 
         if (selectedMark != null)
         {
@@ -94,127 +135,189 @@ public class TowerCardUI : MonoBehaviour
     {
         if (button == null)
         {
-            button = GetComponent<Button>();
+            button =
+                GetComponent<Button>();
         }
 
         if (button == null)
         {
-            button = gameObject.AddComponent<Button>();
+            button =
+                gameObject.AddComponent<Button>();
         }
 
         if (backgroundImage == null)
         {
-            backgroundImage = GetComponent<Image>();
+            backgroundImage =
+                GetComponent<Image>();
         }
 
         if (backgroundImage == null)
         {
-            backgroundImage = gameObject.AddComponent<Image>();
+            backgroundImage =
+                gameObject.AddComponent<Image>();
         }
 
-        RectTransform rect = GetComponent<RectTransform>();
-        if (rect != null)
-        {
-            rect.sizeDelta = new Vector2(300f, 112f);
-        }
+        // 不再自动设置卡片大小
+        // 现在由 Unity Inspector 控制
 
-        LayoutElement layoutElement = GetComponent<LayoutElement>();
+        LayoutElement layoutElement =
+            GetComponent<LayoutElement>();
+
         if (layoutElement == null)
         {
-            layoutElement = gameObject.AddComponent<LayoutElement>();
+            layoutElement =
+                gameObject.AddComponent<LayoutElement>();
         }
 
-        layoutElement.preferredWidth = 300f;
-        layoutElement.preferredHeight = 112f;
-        layoutElement.minHeight = 112f;
+        // 不再自动设置宽高
+        // Inspector 控制
 
         if (iconImage == null)
         {
-            iconImage = FindOrCreateImage("Icon", new Vector2(54f, 54f), new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(38f, 6f));
+            iconImage =
+                FindOrCreateImage(
+                    "Icon"
+                );
         }
 
         if (nameText == null)
         {
-            nameText = FindOrCreateText("NameText", 18f, new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(106f, -18f), new Vector2(160f, 24f));
+            nameText =
+                FindOrCreateText(
+                    "NameText",
+                    18f
+                );
         }
 
         if (costText == null)
         {
-            costText = FindOrCreateText("CostText", 14f, new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(106f, -45f), new Vector2(160f, 22f));
+            costText =
+                FindOrCreateText(
+                    "CostText",
+                    14f
+                );
         }
 
         if (statText == null)
         {
-            statText = FindOrCreateText("StatText", 13f, new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(106f, 32f), new Vector2(160f, 52f));
+            statText =
+                FindOrCreateText(
+                    "StatText",
+                    13f
+                );
         }
 
         if (selectedMark == null)
         {
-            selectedMark = FindOrCreateSelectedMark();
+            selectedMark =
+                FindOrCreateSelectedMark();
         }
     }
 
-    private Image FindOrCreateImage(string childName, Vector2 size, Vector2 anchorMin, Vector2 anchorMax, Vector2 anchoredPosition)
+    private Image FindOrCreateImage(
+        string childName
+    )
     {
-        Transform child = transform.Find(childName);
+        Transform child =
+            transform.Find(childName);
+
         if (child == null)
         {
-            var childObject = new GameObject(childName, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-            childObject.transform.SetParent(transform, false);
-            child = childObject.transform;
-        }
+            var childObject =
+                new GameObject(
+                    childName,
+                    typeof(RectTransform),
+                    typeof(CanvasRenderer),
+                    typeof(Image)
+                );
 
-        var rect = child.GetComponent<RectTransform>();
-        rect.anchorMin = anchorMin;
-        rect.anchorMax = anchorMax;
-        rect.anchoredPosition = anchoredPosition;
-        rect.sizeDelta = size;
+            childObject.transform.SetParent(
+                transform,
+                false
+            );
+
+            child =
+                childObject.transform;
+        }
 
         return child.GetComponent<Image>();
     }
 
-    private TextMeshProUGUI FindOrCreateText(string childName, float fontSize, Vector2 anchorMin, Vector2 anchorMax, Vector2 anchoredPosition, Vector2 size)
+    private TextMeshProUGUI
+        FindOrCreateText(
+            string childName,
+            float fontSize
+        )
     {
-        Transform child = transform.Find(childName);
+        Transform child =
+            transform.Find(childName);
+
         if (child == null)
         {
-            var childObject = new GameObject(childName, typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
-            childObject.transform.SetParent(transform, false);
-            child = childObject.transform;
+            var childObject =
+                new GameObject(
+                    childName,
+                    typeof(RectTransform),
+                    typeof(CanvasRenderer),
+                    typeof(TextMeshProUGUI)
+                );
+
+            childObject.transform.SetParent(
+                transform,
+                false
+            );
+
+            child =
+                childObject.transform;
         }
 
-        var rect = child.GetComponent<RectTransform>();
-        rect.anchorMin = anchorMin;
-        rect.anchorMax = anchorMax;
-        rect.anchoredPosition = anchoredPosition;
-        rect.sizeDelta = size;
+        var text =
+            child.GetComponent<TextMeshProUGUI>();
 
-        var text = child.GetComponent<TextMeshProUGUI>();
         text.fontSize = fontSize;
-        text.color = Color.white;
-        text.alignment = TextAlignmentOptions.Left;
+
+        // 不再自动修改颜色
+        // text.color = Color.white;
+
+        text.alignment =
+            TextAlignmentOptions.Left;
+
         text.enableWordWrapping = true;
+
         return text;
     }
 
-    private GameObject FindOrCreateSelectedMark()
+    private GameObject
+        FindOrCreateSelectedMark()
     {
-        Transform child = transform.Find("SelectedMark");
+        Transform child =
+            transform.Find(
+                "SelectedMark"
+            );
+
         if (child == null)
         {
-            var childObject = new GameObject("SelectedMark", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-            childObject.transform.SetParent(transform, false);
-            child = childObject.transform;
+            var childObject =
+                new GameObject(
+                    "SelectedMark",
+                    typeof(RectTransform),
+                    typeof(CanvasRenderer),
+                    typeof(Image)
+                );
+
+            childObject.transform.SetParent(
+                transform,
+                false
+            );
+
+            child =
+                childObject.transform;
         }
 
-        var rect = child.GetComponent<RectTransform>();
-        rect.anchorMin = new Vector2(1f, 1f);
-        rect.anchorMax = new Vector2(1f, 1f);
-        rect.anchoredPosition = new Vector2(-13f, -13f);
-        rect.sizeDelta = new Vector2(16f, 16f);
+        // 不再自动设置位置
+        // 不再自动设置大小
+        // 不再自动设置颜色
 
-        var image = child.GetComponent<Image>();
-        image.color = new Color(0.25f, 0.9f, 0.45f, 1f);
         return child.gameObject;
     }
 }
