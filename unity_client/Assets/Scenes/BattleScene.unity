@@ -1616,19 +1616,27 @@ MonoBehaviour:
   gameManager: {fileID: 2138205500}
   battleUI: {fileID: 1642794534}
   towerSelectionUI: {fileID: 530100004}
-  buildableCenterSprite: {fileID: 0}
-  buildableTopSprite: {fileID: 0}
-  buildableBottomSprite: {fileID: 0}
-  buildableLeftSprite: {fileID: 0}
-  buildableRightSprite: {fileID: 0}
-  buildableTopLeftSprite: {fileID: 0}
-  buildableTopRightSprite: {fileID: 0}
-  buildableBottomLeftSprite: {fileID: 0}
-  buildableBottomRightSprite: {fileID: 0}
-  pathSprite: {fileID: 0}
-  obstacleSprite: {fileID: 0}
-  castleSprite: {fileID: 0}
+  buildableCenterSprite: {fileID: 1317816526, guid: 027fd9e06196b4e62a8e40527bfbf3a9, type: 3}
+  buildableTopSprite: {fileID: 1908527803, guid: 027fd9e06196b4e62a8e40527bfbf3a9, type: 3}
+  buildableBottomSprite: {fileID: -916154361, guid: 027fd9e06196b4e62a8e40527bfbf3a9, type: 3}
+  buildableLeftSprite: {fileID: -1511874181, guid: 027fd9e06196b4e62a8e40527bfbf3a9, type: 3}
+  buildableRightSprite: {fileID: 849504406, guid: 027fd9e06196b4e62a8e40527bfbf3a9, type: 3}
+  buildableTopLeftSprite: {fileID: -357285377, guid: 027fd9e06196b4e62a8e40527bfbf3a9, type: 3}
+  buildableTopRightSprite: {fileID: 175773559, guid: 027fd9e06196b4e62a8e40527bfbf3a9, type: 3}
+  buildableBottomLeftSprite: {fileID: -1675646848, guid: 027fd9e06196b4e62a8e40527bfbf3a9, type: 3}
+  buildableBottomRightSprite: {fileID: -1764044526, guid: 59b15404243bb41eb9ba6f3778f8b559, type: 3}
+  pathSprite: {fileID: 21300000, guid: 780eafe1c8a324cab90d18efc7967e7b, type: 3}
+  obstacleSprite: {fileID: -4024382073413787549, guid: c5a6a054a96fc4546851fdd38f73c8bb, type: 3}
+  castleSprite: {fileID: 21300000, guid: 5fef2d88b09824faba4be40a870c347e, type: 3}
   emptySprite: {fileID: 0}
+  buildableScale: {x: 1, y: 1, z: 1}
+  pathScale: {x: 0.3, y: 0.3, z: 1}
+  obstacleScale: {x: 0.3, y: 0.3, z: 1}
+  castleScale: {x: 0.5, y: 0.5, z: 1}
+  overlayRoot: {fileID: 0}
+  obstaclePrefab: {fileID: 3097951157629903671, guid: b603714ce7d63ca4a87667b5ef0d4fb1, type: 3}
+  pathPrefab: {fileID: 3097951157629903671, guid: 02fc493e48de26740b6af456b44ee14a, type: 3}
+  castlePrefab: {fileID: 3097951157629903671, guid: e8d2d72a7b1b0a44da74f43f8ee2b2e8, type: 3}
 --- !u!4 &711499318
 Transform:
   m_ObjectHideFlags: 0
@@ -1673,6 +1681,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e3d56a78c69046d08bdc0d85d6ae9a12, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  towerSprites: []
+  monsterSprites: []
   towerSprites:
   - tower_id: 1
     sprite: {fileID: 21300000, guid: 9150ff9a3f88646ddaf1ed327afa1315, type: 3}
