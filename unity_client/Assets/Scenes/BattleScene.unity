@@ -559,7 +559,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -753, y: -3.8473}
+  m_AnchoredPosition: {x: -888, y: -3.8473}
   m_SizeDelta: {x: 128.5296, y: 118.0395}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &172418414
@@ -679,7 +679,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -454.61, y: -3.847}
+  m_AnchoredPosition: {x: -603, y: -3.847}
   m_SizeDelta: {x: 67.7907, y: 66.7687}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &181601526
@@ -851,9 +851,9 @@ Transform:
   m_GameObject: {fileID: 270000001}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
+  m_LocalPosition: {x: 0, y: -0.18, z: 0}
+  m_LocalScale: {x: 1.5, y: 1.5, z: 1.5}
+  m_ConstrainProportionsScale: 1
   m_Children: []
   m_Father: {fileID: 293984258}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
@@ -1618,7 +1618,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 1, y: 0.5}
   m_AnchorMax: {x: 1, y: 0.5}
-  m_AnchoredPosition: {x: -441.22, y: -398.18}
+  m_AnchoredPosition: {x: -502.64, y: -398.18}
   m_SizeDelta: {x: 915, y: 318.4673}
   m_Pivot: {x: 1, y: 0.5}
 --- !u!222 &530100002
@@ -2168,6 +2168,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   monsterRoot: {fileID: 270000002}
   monsterPrefab: {fileID: 5200000000000000001, guid: c57d6b5cb40a4688a1d8686ed656ea34, type: 3}
+  monsterAPrefab: {fileID: 8524188772465970602, guid: 766c6900cdf634c48b6adfa9a253e246, type: 3}
+  monsterBPrefab: {fileID: 2985279379940459791, guid: b613e6785d3c5d14e90fe916eafb7322, type: 3}
   battleUI: {fileID: 1642794534}
   networkManager: {fileID: 2138205501}
   gameManager: {fileID: 2138205500}
@@ -2183,7 +2185,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e3d56a78c69046d08bdc0d85d6ae9a12, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  towerSprites: []
+  towerSprites:
+  - tower_id: 1
+    sprite: {fileID: 21300000, guid: 4b87f0493aef8a644a0ba1e93a844ca6, type: 3}
+  - tower_id: 2
+    sprite: {fileID: 21300000, guid: 798f45eeb74faf54f945a3bb4c39d0f7, type: 3}
   monsterSprites: []
   defaultTowerSprite: {fileID: 0}
   defaultMonsterSprite: {fileID: 0}
@@ -2786,7 +2792,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -165, y: -3.8472824}
+  m_AnchoredPosition: {x: -309, y: -3.8472824}
   m_SizeDelta: {x: 69.9095, y: 66.769}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1138891196
@@ -3845,7 +3851,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 296, y: -0.0000076293945}
+  m_AnchoredPosition: {x: 153, y: -0.0000076293945}
   m_SizeDelta: {x: 162.2109, y: 193.7867}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1812106656

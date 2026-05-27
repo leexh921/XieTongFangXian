@@ -11,13 +11,21 @@ public class MonsterView : MonoBehaviour
     public Transform hpBarRoot;
     public Transform hpFill;
     public VisualConfigManager visualConfigManager;
+    public Sprite[] animationFrames;
+    public float animationFps = 12f;
 
     private static Sprite fallbackSprite;
     private static Sprite hpBarSprite;
+    private const int MonsterSortingOrder = 20;
+    private const string MonsterAFramesPath = "Assets/Art/Monsters/MonsterA/Skull/Skull_Run.png";
+    private const string MonsterBFramesPath = "Assets/Art/Monsters/MonsterB/Troll/Troll_Walk.png";
     private const float HpBarWidth = 1.15f;
     private const float HpBarHeight = 0.12f;
     private Vector3 targetPosition;
     private bool updatedThisFrame;
+    private bool useManualAnimation;
+    private float animationTimer;
+    private int animationFrameIndex;
 
     public void Init(string instanceId, int monsterId, int currentHp, int currentMaxHp, Vector3 worldPosition)
     {
@@ -26,7 +34,12 @@ public class MonsterView : MonoBehaviour
         targetPosition = new Vector3(worldPosition.x, worldPosition.y, -0.2f);
         transform.position = targetPosition;
         EnsureRenderer();
-        ApplyMonsterSprite();
+        SetupAnimationVisual();
+        if (!useManualAnimation && !HasAnimatorVisual())
+        {
+            ApplyMonsterSprite();
+        }
+
         EnsureHpBar();
         SetHp(currentHp, currentMaxHp);
         MarkUpdatedThisFrame();
@@ -35,6 +48,7 @@ public class MonsterView : MonoBehaviour
     private void Update()
     {
         transform.position = Vector3.Lerp(transform.position, targetPosition, Time.deltaTime * moveLerpSpeed);
+        UpdateManualAnimation();
     }
 
     public void ApplyState(MonsterStateData data, Vector3 worldPosition)
@@ -49,7 +63,11 @@ public class MonsterView : MonoBehaviour
         {
             monster_id = data.monster_id;
             EnsureRenderer();
-            ApplyMonsterSprite();
+            SetupAnimationVisual();
+            if (!useManualAnimation && !HasAnimatorVisual())
+            {
+                ApplyMonsterSprite();
+            }
         }
 
         targetPosition = new Vector3(worldPosition.x, worldPosition.y, -0.2f);
@@ -102,15 +120,20 @@ public class MonsterView : MonoBehaviour
 
         if (spriteRenderer == null)
         {
+            spriteRenderer = GetComponentInChildren<SpriteRenderer>();
+        }
+
+        if (spriteRenderer == null)
+        {
             spriteRenderer = gameObject.AddComponent<SpriteRenderer>();
         }
 
-        if (spriteRenderer.sprite == null)
+        if (spriteRenderer.sprite == null && !TryStartAnimatorVisual())
         {
             spriteRenderer.sprite = GetFallbackSprite();
         }
 
-        spriteRenderer.sortingOrder = 20;
+        ApplySortingOrderToRenderers(MonsterSortingOrder);
     }
 
     private void ApplyMonsterSprite()
@@ -130,6 +153,122 @@ public class MonsterView : MonoBehaviour
         {
             spriteRenderer.sprite = GetFallbackSprite();
             spriteRenderer.color = VisualConfigManager.GetMonsterFallbackColor(monster_id);
+        }
+    }
+
+    private void SetupAnimationVisual()
+    {
+        EnsureAnimationFrames();
+
+        if (animationFrames != null && animationFrames.Length > 0)
+        {
+            Animator animator = GetAnimator();
+            if (animator != null)
+            {
+                animator.enabled = false;
+            }
+
+            useManualAnimation = true;
+            animationFrameIndex = Mathf.Clamp(animationFrameIndex, 0, animationFrames.Length - 1);
+            spriteRenderer.sprite = animationFrames[animationFrameIndex];
+            spriteRenderer.color = Color.white;
+            return;
+        }
+
+        useManualAnimation = false;
+        TryStartAnimatorVisual();
+    }
+
+    private void UpdateManualAnimation()
+    {
+        if (!useManualAnimation || animationFrames == null || animationFrames.Length == 0 || spriteRenderer == null)
+        {
+            return;
+        }
+
+        animationTimer += Time.deltaTime;
+        float frameDuration = 1f / Mathf.Max(1f, animationFps);
+        while (animationTimer >= frameDuration)
+        {
+            animationTimer -= frameDuration;
+            animationFrameIndex = (animationFrameIndex + 1) % animationFrames.Length;
+            spriteRenderer.sprite = animationFrames[animationFrameIndex];
+        }
+    }
+
+    private void EnsureAnimationFrames()
+    {
+        if (animationFrames != null && animationFrames.Length > 0)
+        {
+            return;
+        }
+
+#if UNITY_EDITOR
+        string path = monster_id == 2 ? MonsterBFramesPath : MonsterAFramesPath;
+        UnityEngine.Object[] assets = UnityEditor.AssetDatabase.LoadAllAssetsAtPath(path);
+        var sprites = new System.Collections.Generic.List<Sprite>();
+        for (int i = 0; i < assets.Length; i++)
+        {
+            Sprite sprite = assets[i] as Sprite;
+            if (sprite != null)
+            {
+                sprites.Add(sprite);
+            }
+        }
+
+        sprites.Sort((a, b) => string.CompareOrdinal(a.name, b.name));
+        animationFrames = sprites.ToArray();
+#endif
+    }
+
+    private bool HasAnimatorVisual()
+    {
+        Animator animator = GetAnimator();
+        return animator != null && animator.runtimeAnimatorController != null;
+    }
+
+    private bool TryStartAnimatorVisual()
+    {
+        Animator animator = GetAnimator();
+        if (animator == null || animator.runtimeAnimatorController == null)
+        {
+            return false;
+        }
+
+        animator.enabled = true;
+        animator.Rebind();
+        animator.Update(0f);
+        return true;
+    }
+
+    private Animator GetAnimator()
+    {
+        Animator animator = GetComponent<Animator>();
+        if (animator != null)
+        {
+            return animator;
+        }
+
+        return GetComponentInChildren<Animator>();
+    }
+
+    private void ApplySortingOrderToRenderers(int sortingOrder)
+    {
+        SpriteRenderer[] renderers = GetComponentsInChildren<SpriteRenderer>(true);
+        if (renderers.Length == 0)
+        {
+            return;
+        }
+
+        int lowestOrder = renderers[0].sortingOrder;
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            lowestOrder = Mathf.Min(lowestOrder, renderers[i].sortingOrder);
+        }
+
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            renderers[i].sortingOrder = sortingOrder + (renderers[i].sortingOrder - lowestOrder);
         }
     }
 

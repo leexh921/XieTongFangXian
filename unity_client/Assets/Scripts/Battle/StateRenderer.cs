@@ -5,9 +5,14 @@ public class StateRenderer : MonoBehaviour
 {
     public Transform monsterRoot;
     public GameObject monsterPrefab;
+    public GameObject monsterAPrefab;
+    public GameObject monsterBPrefab;
     public BattleUI battleUI;
     public NetworkManager networkManager;
     public GameManager gameManager;
+
+    private const string MonsterAPrefabPath = "Assets/Prefabs/MonsterA.prefab";
+    private const string MonsterBPrefabPath = "Assets/Prefabs/MonsterB.prefab";
 
     private readonly Dictionary<string, MonsterView> monsters = new Dictionary<string, MonsterView>();
     private float nextStateLogTime;
@@ -98,9 +103,10 @@ public class StateRenderer : MonoBehaviour
         EnsureMonsterRoot();
 
         GameObject monsterObject;
-        if (monsterPrefab != null)
+        GameObject prefab = GetPrefabForMonster(data.monster_id);
+        if (prefab != null)
         {
-            monsterObject = Instantiate(monsterPrefab, monsterRoot);
+            monsterObject = Instantiate(prefab, monsterRoot);
         }
         else
         {
@@ -133,6 +139,38 @@ public class StateRenderer : MonoBehaviour
         monsterObject.AddComponent<SpriteRenderer>();
         monsterObject.AddComponent<MonsterView>();
         return monsterObject;
+    }
+
+    private GameObject GetPrefabForMonster(int monsterId)
+    {
+        ResolveMonsterPrefabs();
+
+        if (monsterId == 2 && monsterBPrefab != null)
+        {
+            return monsterBPrefab;
+        }
+
+        if (monsterAPrefab != null)
+        {
+            return monsterAPrefab;
+        }
+
+        return monsterPrefab;
+    }
+
+    private void ResolveMonsterPrefabs()
+    {
+#if UNITY_EDITOR
+        if (monsterAPrefab == null)
+        {
+            monsterAPrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(MonsterAPrefabPath);
+        }
+
+        if (monsterBPrefab == null)
+        {
+            monsterBPrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(MonsterBPrefabPath);
+        }
+#endif
     }
 
     private void RemoveMissingMonsters()
