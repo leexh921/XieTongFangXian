@@ -8,18 +8,27 @@ public class TowerSelectionUI : MonoBehaviour
     public GameObject popupRoot;
     public Transform towerCardRoot;
     public GameObject towerCardPrefab;
+
     public TextMeshProUGUI titleText;
     public TextMeshProUGUI selectedTileText;
     public TextMeshProUGUI messageText;
+
     public Button closeButton;
+
+    // 新增：外部建塔按钮
+    public Button buildButton1;
+    public Button buildButton2;
+
     public BattleUI battleUI;
     public GameManager gameManager;
     public NetworkManager networkManager;
+
     public RectTransform popupRect;
     public Camera mainCamera;
 
     private int pendingGridX;
     private int pendingGridY;
+
     private bool hasPendingTile;
 
     private readonly List<TowerCardUI> cards =
@@ -33,6 +42,8 @@ public class TowerSelectionUI : MonoBehaviour
 
         SubscribeNetworkEvents();
 
+        BindBuildButtons();
+
         Hide();
     }
 
@@ -43,6 +54,16 @@ public class TowerSelectionUI : MonoBehaviour
         if (closeButton != null)
         {
             closeButton.onClick.RemoveListener(Hide);
+        }
+
+        if (buildButton1 != null)
+        {
+            buildButton1.onClick.RemoveListener(BuildTower1);
+        }
+
+        if (buildButton2 != null)
+        {
+            buildButton2.onClick.RemoveListener(BuildTower2);
         }
     }
 
@@ -146,7 +167,7 @@ public class TowerSelectionUI : MonoBehaviour
 
         SetMessage("");
 
-        // 不再自动修改位置
+        // 不再自动改位置
         PositionPopup(worldPosition);
 
         RefreshTowerCards();
@@ -204,9 +225,10 @@ public class TowerSelectionUI : MonoBehaviour
             TowerCardUI card =
                 CreateCard();
 
+            // 不再点击卡片建塔
             card.Init(
                 config,
-                this,
+                null,
                 currentGold
             );
 
@@ -493,9 +515,6 @@ public class TowerSelectionUI : MonoBehaviour
     {
         ResolveReferences();
 
-        // 不再自动设置位置
-        // 不再自动设置大小
-        // 不再自动设置颜色
         // 全部由 Unity Inspector 控制
 
         if (closeButton != null)
@@ -510,92 +529,11 @@ public class TowerSelectionUI : MonoBehaviour
         }
     }
 
-    private TextMeshProUGUI
-        FindOrCreateText(
-            string childName,
-            string text,
-            float fontSize,
-            Vector2 anchorMin,
-            Vector2 anchorMax,
-            Vector2 anchoredPosition,
-            Vector2 sizeDelta
-        )
-    {
-        Transform child =
-            transform.Find(childName);
-
-        if (child == null)
-        {
-            var childObject =
-                new GameObject(
-                    childName,
-                    typeof(RectTransform),
-                    typeof(CanvasRenderer),
-                    typeof(TextMeshProUGUI)
-                );
-
-            childObject.transform.SetParent(
-                transform,
-                false
-            );
-
-            child =
-                childObject.transform;
-        }
-
-        var label =
-            child.GetComponent<TextMeshProUGUI>();
-
-        label.text = text;
-
-        label.fontSize = fontSize;
-
-        label.enableWordWrapping = true;
-
-        label.alignment =
-            TextAlignmentOptions.Center;
-
-        return label;
-    }
-
-    private Button
-        FindOrCreateCloseButton()
-    {
-        Transform child =
-            transform.Find("CloseButton");
-
-        if (child == null)
-        {
-            var childObject =
-                new GameObject(
-                    "CloseButton",
-                    typeof(RectTransform),
-                    typeof(CanvasRenderer),
-                    typeof(Image),
-                    typeof(Button)
-                );
-
-            childObject.transform.SetParent(
-                transform,
-                false
-            );
-
-            child =
-                childObject.transform;
-        }
-
-        Button button =
-            child.GetComponent<Button>();
-
-        return button;
-    }
-
     private void PositionPopup(
         Vector3 worldPosition
     )
     {
         // 不再自动修改位置
-        // 完全由 Unity Inspector 控制
     }
 
     private void SubscribeNetworkEvents()
@@ -651,5 +589,70 @@ public class TowerSelectionUI : MonoBehaviour
                     ? "未知原因"
                     : reason;
         }
+    }
+
+    // =========================
+    // 外部按钮建塔
+    // =========================
+
+    private void BindBuildButtons()
+    {
+        if (buildButton1 != null)
+        {
+            buildButton1.onClick.RemoveListener(
+                BuildTower1
+            );
+
+            buildButton1.onClick.AddListener(
+                BuildTower1
+            );
+        }
+
+        if (buildButton2 != null)
+        {
+            buildButton2.onClick.RemoveListener(
+                BuildTower2
+            );
+
+            buildButton2.onClick.AddListener(
+                BuildTower2
+            );
+        }
+    }
+
+    private void BuildTower1()
+    {
+        BuildTowerByIndex(0);
+    }
+
+    private void BuildTower2()
+    {
+        BuildTowerByIndex(1);
+    }
+
+    private void BuildTowerByIndex(int index)
+    {
+        if (gameManager == null)
+        {
+            return;
+        }
+
+        List<TowerConfigData> configs =
+            gameManager.GetTowerConfigs();
+
+        if (configs == null)
+        {
+            return;
+        }
+
+        if (
+            index < 0
+            || index >= configs.Count
+        )
+        {
+            return;
+        }
+
+        OnTowerSelected(configs[index]);
     }
 }
