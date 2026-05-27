@@ -4,11 +4,16 @@ using UnityEngine;
 
 public class MapManager : MonoBehaviour
 {
-    private const int EmptySortingOrder = -30;
-    private const int BuildableSortingOrder = -20;
-    private const int PathSortingOrder = -10;
-    private const int ObstacleSortingOrder = -5;
-    private const int CastleSortingOrder = -4;
+   private const int EmptySortingOrder = -30;
+private const int ShadowSortingOrder = -25;
+private const int BuildableSortingOrder = -20;
+private const int PathSortingOrder = -10;
+private const int ObstacleSortingOrder = -5;
+private const int CastleSortingOrder = -4;
+
+    [Header("Shadow")]
+public Transform shadowRoot;
+public GameObject shadowPrefab;
 
     [Header("Grid")]
     public int width = BattleMapConfig.Width;
@@ -337,8 +342,62 @@ public class MapManager : MonoBehaviour
 
         tiles[MakeKey(gridX, gridY)] = tile;
         tileMap[new Vector2Int(gridX, gridY)] = tile;
+        CreateCoastShadow(gridX, gridY);
     }
 
+   private void CreateCoastShadow(int gridX, int gridY)
+{
+    bool isEdge =
+        gridX == 0 ||
+        gridY == 0 ||
+        gridX == activeMap.width - 1 ||
+        gridY == activeMap.height - 1;
+
+    if (!isEdge)
+    {
+        return;
+    }
+
+    Vector3 tilePos =
+        BattleMapConfig.GridToWorld(
+            gridX,
+            gridY,
+            activeMap
+        );
+
+    GameObject shadow =
+        Instantiate(
+            shadowPrefab,
+            tilePos,
+            Quaternion.identity,
+            shadowRoot
+        );
+
+    // 比草地略大
+    shadow.transform.localScale =
+        new Vector3(
+            1.15f,
+            1.15f,
+            1f
+        );
+
+    // 稍微往右下偏移
+    shadow.transform.position +=
+        new Vector3(
+            0.06f,
+            -0.06f,
+            0
+        );
+
+    // 排序在草地下
+    SpriteRenderer sr =
+        shadow.GetComponent<SpriteRenderer>();
+
+    if (sr != null)
+    {
+       sr.sortingOrder = ShadowSortingOrder;
+    }
+}
     private void CreateOverlay(GameObject prefab, int gridX, int gridY, Vector3 scale, string objectName, TileType tileType)
     {
         if (prefab == null)
